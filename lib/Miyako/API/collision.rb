@@ -186,13 +186,13 @@ module Miyako
       end
     end
 
-    #===円当たり判定を行う(領域が重なっている)
+    #===当たり判定間の距離を算出する
     #_pos1_:: 自分自身の位置(Point/Rect/Square構造体、2要素以上の配列、もしくはx,yメソッドを持つインスタンス)
     #_c2_:: 判定対象のコリジョンインスタンス
     #_pos2_:: c2の位置(Point/Rect/Square構造体、2要素以上の配列、もしくはx,yメソッドを持つインスタンス)
     #返却値:: 1ピクセルでも重なっていれば true を返す
     def interval(pos1, c2, pos2)
-      return CircleCollision.collision?(self, pos1, c2, pos2)
+      return CircleCollision.interval(self, pos1, c2, pos2)
     end
 
     #===当たり判定を行う(領域が重なっている)
@@ -220,6 +220,24 @@ module Miyako
     #返却値:: 領域が覆われていれば true を返す
     def cover?(pos1, c2, pos2)
       return CircleCollision.cover?(self, pos1, c2, pos2)
+    end
+
+    #===当たり判定間の距離を算出する
+    # ２つの当たり判定がどの程度離れているかを算出する。
+    # 返ってくる値は、衝突していなければ正の実数、衝突していれば負の実数で返ってくる
+    #_c1_:: 判定対象のコリジョンインスタンス(1)
+    #_pos1_:: c1の位置(Point/Rect/Square構造体、2要素以上の配列、もしくはx,yメソッドを持つインスタンス)
+    #_c2_:: 判定対象のコリジョンインスタンス(2)
+    #_pos2_:: c2の位置(Point/Rect/Square構造体、2要素以上の配列、もしくはx,yメソッドを持つインスタンス)
+    #返却値:: 当たり判定間の距離
+    def CircleCollision.interval(c1, pos1, c2, pos2)
+      #2点間の距離を求める
+      d = Math.sqrt((((c1.center[0].to_f + pos1[0].to_f) - (c2.center[0].to_f + pos2[0].to_f)) ** 2) +
+                    (((c1.center[1].to_f + pos1[1].to_f) - (c2.center[1].to_f + pos2[1].to_f)) ** 2))
+      #半径の和を求める
+      r  = c1.radius.to_f + c2.radius.to_f
+      distance = d - r
+      return distance.abs < Float::EPSILON ? 0.0 : distance
     end
 
     #===当たり判定を行う(領域が重なっている)
