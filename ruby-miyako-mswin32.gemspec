@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   s.name = "ruby-miyako-mswin32"
-  s.version = "2.0.4"
-  s.date = "2009-4-25"
+  s.version = "2.0.5"
+  s.date = "2009-4-26"
   s.summary = "Game programming library for Ruby"
   s.email = "cyross@po.twin.ne.jp"
   s.homepage = "http://www.twin.ne.jp/~cyross/Miyako/"
