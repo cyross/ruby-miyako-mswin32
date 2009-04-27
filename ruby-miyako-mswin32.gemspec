@@ -11,6 +11,7 @@ Gem::Specification.new do |s|
   s.rdoc_options = "-c utf-8"
   s.authors = ["Cyross Makoto"]
   s.test_files = []
+=begin
   s.files = [
 "./img/cursor.png",
 "./img/cursors.png",
@@ -159,5 +160,6 @@ Gem::Specification.new do |s|
 "./sample/utility_test4.rb",
 "./uninstall_miyako.rb"
   ]
+=end
   s.require_paths = ["lib"]
 end
