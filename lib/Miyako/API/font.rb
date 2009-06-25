@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 =begin
 --
-Miyako v2.0
+Miyako v2.1
 Copyright (C) 2007-2009  Cyross Makoto
 
 This library is free software; you can redistribute it and/or
@@ -63,6 +63,19 @@ module Miyako
                                       {:serif=>"ヒラキ゛ノ明朝 Pro W6.otf", :sans_serif=>"ヒラキ゛ノ角コ゛ Pro W6.otf"},
                                       {:serif=>"VL-Gothic-Regular.ttf", :sans_serif=>"VL-Gothic-Regular.ttf"},
                                       {:serif=>"umeplus-gothic.ttf", :sans_serif=>"umeplus-gothic.ttf"}]
+    @@initialized = false
+
+    #===フォント関連の初期化処理
+    def Font.init
+      SDL::TTF.init
+      Font.create_font_path
+      @@initialized = true
+    end
+
+    #===フォント周辺の初期化がされた？
+    def Font.initialized?
+      @@initialized
+    end
 
     def Font.search_font_path_file(hash, path) #:nodoc:
       Dir.glob(path+"*"){|d|
@@ -125,7 +138,7 @@ module Miyako
       @bold = false
       @italic = false
       @under_line = false
-      @fpath = Font.findFontPath(@fname) or raise MiyakoError, "Cannot Find Font! : #{@fname}"
+      @fpath = Font.findFontPath(@fname) or raise MiyakoIOError.new(@fname)
       @font = Font.get_font_inner(@fname, @fpath, @size)
       @font.style = SDL::TTF::STYLE_NORMAL
       init_height
@@ -135,13 +148,24 @@ module Miyako
       @unit = SpriteUnitFactory.create
     end
 
+    def initialize_copy(obj) #:nodoc:
+      @size = @size.dup
+      @color = @color.dup
+      @fname = @fname.dup
+      @shadow_color = @shadow_color.dup
+      @shadow_margin = @shadow_margin.dup
+      @unit = @unit.dup
+    end
+
     #===フォントの大きさを変更する
     #_sz_:: 変更するフォントの大きさ(単位：ピクセル)
     #返却値:: 変更されたフォントのインスタンス
     def size=(sz)
       @size = sz
       @font = Font.get_font_inner(@fname, @fpath, @size)
-      @font.style = (@bold ? SDL::TTF::STYLE_BOLD : 0) | (@italic ? SDL::TTF::STYLE_ITALIC : 0) | (@under_line ? SDL::TTF::STYLE_UNDERLINE : 0)
+      @font.style = (@bold ? SDL::TTF::STYLE_BOLD : 0) | 
+                    (@italic ? SDL::TTF::STYLE_ITALIC : 0) |
+                    (@under_line ? SDL::TTF::STYLE_UNDERLINE : 0)
       init_height
       return self
     end
@@ -376,8 +400,6 @@ module Miyako
       raise MiyakoError, "Illegal margin_height align! : #{align}"
     end
 
-    Font.create_font_path
-
     #===Serifフォント(明朝フォント)を取得する
     #マルチプラットフォームのソフトを作る際、OS間の差異を吸収するため、
     #共通の名称でフォントインスタンスを取得するときに使う(主に明朝フォント)
@@ -392,7 +414,10 @@ module Miyako
     #共通の名称でフォントインスタンスを取得するときに使う(主にゴシックフォント)
     #返却値:: OSごとに設定されたフォントイン寸タンス(フォントサイズは16)
     def Font::sans_serif
-      filename = @@font_base_name[Miyako::getOSName].detect{|base| Font.findFontPath(base[:sans_serif]) }[:sans_serif]
+      filename = @@font_base_name[Miyako::getOSName].
+                   detect{|base| 
+                     Font.findFontPath(base[:sans_serif])
+                   }[:sans_serif]
       return Font.new(filename)
     end
 

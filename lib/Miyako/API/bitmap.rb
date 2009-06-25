@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 =begin
 --
-Miyako v2.0
+Miyako v2.1
 Copyright (C) 2007-2009  Cyross Makoto
 
 This library is free software; you can redistribute it and/or
@@ -26,11 +26,19 @@ module Miyako
   #SDLのSurfaceクラスインスタンスを管理するクラス
   class Bitmap
     def Bitmap.create(w, h, flag=SDL::HWSURFACE | SDL::SRCCOLORKEY | SDL::SRCALPHA) #:nodoc:
-      return SDL::Surface.new(flag, w, h, 32, Screen.bitmap.Rmask, Screen.bitmap.Gmask, Screen.bitmap.Bmask, Screen.bitmap.Amask)
+      return SDL::Surface.new(flag, w, h, 32,
+                              Screen.bitmap.Rmask, Screen.bitmap.Gmask,
+                              Screen.bitmap.Bmask, Screen.bitmap.Amask)
+#      return SDL::Surface.new(flag, w, h, 32, 0xff0000, 0xff00, 0xff, 0xff000000)
     end
 
     def Bitmap.load(filename) #:nodoc:
-      return SDL::Surface.load(filename)
+      begin
+        return SDL::Surface.load(filename)
+      rescue SDL::Error
+        raise MiyakoFileFormatError, "Illegal file format! collect? #{name}"
+      end
+      return nil
     end
 
     #===画像をαチャネル付き画像へ転送する

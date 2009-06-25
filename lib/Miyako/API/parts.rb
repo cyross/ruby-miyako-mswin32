@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 =begin
 --
-Miyako v2.0
+Miyako v2.1
 Copyright (C) 2007-2009  Cyross Makoto
 
 This library is free software; you can redistribute it and/or
@@ -29,6 +29,8 @@ module Miyako
   #すべてのパーツは、すべてレイアウト空間にスナップされる
   #(登録したパーツのレイアウト情報が変わることに注意)
   class Parts
+    include SpriteBase
+    include Animation
     include Enumerable
     include Layout
     extend Forwardable
@@ -45,6 +47,14 @@ module Miyako
       init_layout
       set_layout_size(size[0], size[1])
     end
+    
+    def initialize_copy(obj) #:nodoc:
+      copy_layout
+      @parts_list = []
+      @parts = {}
+      obj.names.each{|name| self[name] = obj[name].deep_dup }
+      self
+    end
 
     #===nameで示した補助パーツを返す
     #_name_:: 補助パーツに与えた名前(シンボル)
@@ -58,6 +68,9 @@ module Miyako
     #_value_:: 補助パーツのインスタンス(スプライト、テキストボックス、アニメーション、レイアウトボックスなど)
     #返却値:: 自分自身
     def []=(name, value)
+      if @parts_list.include?(name)
+        @parts_list.delete(name)
+      end
       @parts_list.push(name)
       @parts[name] = value
       @parts[name].snap(self)
@@ -70,19 +83,93 @@ module Miyako
       return @parts_list
     end
 
+    #===すべての補助パーツの一覧を配列で返す
+    #返却値:: パーツ名の配列(登録順)
+    def names
+      return @parts_list
+    end
+
     #===指定の補助パーツを除外する
     #_name_:: 除外するパーツ名(シンボル)
     #返却値:: 自分自身
     def remove(name)
       self.delete_snap_child(@parts[name])
+      @parts_list.delete(name)
       @parts.delete(name)
       return self
+    end
+
+    #===指定の補助パーツを除外する
+    #_name_:: 除外するパーツ名(シンボル)
+    #返却値:: 自分自身
+    def delete(name)
+      return self.remve(name)
     end
 
     #===メインパーツと補助パーツに対してブロックを評価する
     #返却値:: 自分自身
     def each
       @parts_list.each{|k| yield @parts[k] }
+      return self
+    end
+    
+    #===指定の名前の直前に名前を挿入する
+    #配列上で、スプライト名配列の指定の名前の前になるように名前を挿入する
+    #_key_:: 挿入先の名前。この名前の直前に挿入する
+    #_name_:: 挿入するスプライトの名前
+    #_value_:: (名前が未登録の時の)スプライト本体省略時はnil
+    #返却値：自分自身を返す
+    def insert(key, name, value = nil)
+      raise MiyakoValueError, "Illegal key! : #{key}" unless @parts_list.include?(key)
+      return self if key == name
+      if value
+        @parts[name] = value 
+      else
+        raise MiyakoValueError, "name is not regist! : #{name}" unless @parts_list.include?(name)
+      end
+      @parts_list.delete(name) if @parts_list.include?(name)
+      @parts_list.insert(@parts_list.index(key), name)
+      self
+    end
+    
+    #===指定の名前の直後に名前を挿入する
+    #配列上で、スプライト名配列の指定の名前の次の名前になるように名前を挿入する
+    #_key_:: 挿入先の名前。この名前の直後に挿入する
+    #_name_:: 挿入するスプライトの名前
+    #_value_:: (名前が未登録の時の)スプライト本体省略時はnil
+    #返却値：自分自身を返す
+    def insert_after(key, name, value = nil)
+      raise MiyakoValueError, "Illegal key! : #{key}" unless @parts_list.include?(key)
+      return self if key == name
+      if value
+        @parts[name] = value 
+      else
+        raise MiyakoValueError, "name is not regist! : #{name}" unless @parts_list.include?(name)
+      end
+      @parts_list.delete(name) if @parts_list.include?(name)
+      @parts_list.insert(@parts_list.index(key)-@parts_list.length, name)
+      self
+    end
+    
+    #===指定した要素の内容を入れ替える
+    #配列の先頭から順にrenderメソッドを呼び出す。
+    #描画するインスタンスは、SpriteBaseもしくはSpriteArrayモジュールを
+    #mixinしているクラスのインスタンスのみ
+    #_name1,name_:: 入れ替え対象の名前
+    #返却値:: 自分自身を帰す
+    def swap(name1, name2)
+      raise MiyakoValueError, "Illegal name! : idx1:#{name1}" unless @parts_list.include?(name1)
+      raise MiyakoValueError, "Illegal name! : idx2:#{name2}" unless @parts_list.include?(name2)
+      idx1 = @parts_list.index(name1)
+      idx2 = @parts_list.index(name2)
+      @parts_list[idx1], @parts_list[idx2] = @parts_list[idx2], @parts_list[idx1]
+      return self
+    end
+    
+    #===名前の順番を反転する
+    #返却値:: 自分自身を帰す
+    def reverse!
+      @parts_list.reverse!
       return self
     end
 
@@ -101,9 +188,9 @@ module Miyako
     end
 
     #===メインパーツと補助パーツのすべてのアニメーションを更新する
-    #返却値:: 自分自身
+    #返却値:: 各パーツのupdate_animationの結果を配列として返す
     def update_animation
-      self.each{|parts| parts.update_animation }
+      self.map{|parts| parts.update_animation }
     end
 
     #===メインパーツと補助パーツのすべてのアニメーションを、最初のパターンに巻き戻す

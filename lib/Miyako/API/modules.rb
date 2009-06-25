@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 =begin
 --
-Miyako v2.0
+Miyako v2.1
 Copyright (C) 2007-2009  Cyross Makoto
 
 This library is free software; you can redistribute it and/or
@@ -37,6 +37,28 @@ module Miyako
     #返却値:: nilを返す
     def to_unit
       return nil
+    end
+    
+    #===描画可能・不可状態を返すメソッドのテンプレート
+    #返却値:: falseを返す
+    def visible
+      return false
+    end
+    
+    #===描画可能・不可状態を設定するメソッドのテンプレート
+    #返却値:: falseを返す
+    def visible=(v)
+      return self
+    end
+    
+    #===描画可能状態にするメソッドのテンプレート
+    def show
+      self.visible = true
+    end
+    
+    #===描画不可能状態にするメソッドのテンプレート
+    def hide
+      self.visible = false
     end
     
     #===領域の矩形を取得するメソッドのテンプレート
@@ -75,6 +97,14 @@ module Miyako
     def render(&block)
       return self
     end
+    
+    #===画像への描画を指示するメソッドのテンプレート
+    #_dst_:: 対象の画像
+    #_block_:: 呼び出し時にブロック付き呼び出しが行われたときのブロック本体。呼び先に渡すことが出来る。ブロックがなければnilが入る
+    #返却値:: 自分自身を返す
+    def render_to(dst, &block)
+      return self
+    end
   end
 
 =begin rdoc
@@ -105,5 +135,168 @@ module Miyako
     def update_animation
       return false
     end
+  end
+  
+  #==複数スプライト管理(配列)機能を追加するモジュール
+  #配列にスプライトとして最低限の機能を追加する。
+  #また、独自にswapなどのメソッドを追加。
+  #render、render_toを用意し、一気に描画が可能。配列の要素順に描画される。
+  #各要素の位置関係は関与していない(そこがPartsとの違い)
+  module SpriteArray
+    include SpriteBase
+    include Animation
+    include Enumerable
+
+    #===各要素からスプライト以外の要素を取り除いた配列を作成する
+    #SpriteBaseモジュール、もしくはSpriteArrayモジュールをインクルードしていない要素を削除した配列を返す
+    #登録されている名前順の配列になる。
+    #返却値:: 生成したスプライトを返す
+    def sprite_only
+      self.delete_if{|e| !e.class.include?(SpriteBase) && !ret[name].class.include?(SpriteArray)}
+    end
+
+    #===各要素からスプライト以外の要素を取り除いた配列を破壊的に作成する
+    #SpriteBaseモジュール、もしくはSpriteArrayモジュールをインクルードしていない要素を削除する
+    #登録されている名前順の配列になる。
+    #返却値:: 自分自身を返す
+    def sprite_only!
+      self.delete_if!{|e| !e.class.include?(SpriteBase) && !ret[name].class.include?(SpriteArray)}
+      return self
+    end
+  
+    #===配列要素を複製したコピー配列を取得する
+    #通常、インスタンスの複写に使われるdup,cloneメソッドは、同じ配列要素を見ているが、
+    #このメソッドでは、要素も複製したものが複製される(各要素のdeep_copyメソッドを呼び出す)
+    #返却値:: 複写した配列を返す
+    def deep_copy
+      self.map{|e| e.deep_copy }
+    end
+
+    #===各要素の描画可能状態を取得する
+    #各要素のvisibleメソッドの値を配列で取得する。
+    #登録されている名前順の配列になる。
+    #返却値:: true/falseの配列
+    def visible
+      return self.sprite_only.map{|e| e.visible}
+    end
+  
+    #===各要素の描画可能状態を一気に設定する
+    #すべての要素のvisibleメソッドの値を変更する
+    #登録されている名前順の配列になる。
+    #_v_:: 設定する値(true/false)
+    #返却値:: 自分自身を返す
+    def visible=(v)
+      self.sprite_only.each{|e| e.visible = v}
+      return self
+    end
+    
+    #===描く画像のアニメーションを開始する
+    #各要素のstartメソッドを呼び出す
+    #返却値:: 自分自身を返す
+    def start
+      self.sprite_only.each{|sprite| sprite.start }
+      return self
+    end
+    
+    #===描く画像のアニメーションを停止する
+    #各要素のstopメソッドを呼び出す
+    #返却値:: 自分自身を返す
+    def stop
+      self.sprite_only.each{|sprite| sprite.stop }
+      return self
+    end
+    
+    #===描く画像のアニメーションを先頭パターンに戻す
+    #各要素のresetメソッドを呼び出す
+    #返却値:: 自分自身を返す
+    def reset
+      self.sprite_only.each{|sprite| sprite.reset }
+      return self
+    end
+    
+    #===描く画像のアニメーションを更新する
+    #各要素のupdate_animationメソッドを呼び出す
+    #返却値:: 描く画像のupdate_spriteメソッドを呼び出した結果を配列で返す
+    def update_animation
+      self.sprite_only.map{|e|
+        e.update_animation
+      }
+    end
+  
+    #===指定した要素の内容を入れ替える
+    #配列の先頭から順にrenderメソッドを呼び出す。
+    #描画するインスタンスは、引数がゼロのrenderメソッドを持っているもののみ(持っていないときは呼び出さない)
+    #_idx1,idx2_:: 入れ替え対象の配列要素インデックス
+    #返却値:: 自分自身を帰す
+    def swap(idx1, idx2)
+      l = self.length
+      raise MiyakoValueError, "Illegal index range! : idx1:#{idx1}" if (idx1 >= l || idx1 < -l)
+      raise MiyakoValueError, "Illegal index range! : idx2:#{idx2}" if (idx2 >= l || idx2 < -l)
+      self[idx1], self[idx2] = self[idx2], self[idx1]
+      return self
+    end
+    
+    #===配列の要素を画面に描画する
+    #配列の先頭から順にrenderメソッドを呼び出す。
+    #描画するインスタンスは、SpriteBaseモジュールがmixinされているクラスのみ
+    #返却値:: 自分自身を帰す
+    def render
+      self.sprite_only.each{|e| e.render }
+      return self
+    end
+    
+    #===配列の要素を対象の画像に描画する
+    #配列の先頭から順にrender_toメソッドを呼び出す。
+    #描画するインスタンスは、SpriteBaseモジュールがmixinされているクラスのみ
+    #_dst_:: 描画対象の画像インスタンス
+    #返却値:: 自分自身を帰す
+    def render_to(dst)
+      self.sprite_only.each{|e| e.render_to(dst) }
+      return self
+    end
+  end
+  
+  #==ディープコピーを実装するモジュール
+  #dup、cloneとは違い、「ディープコピー(配列などの要素も複製するコピー)」を実装するためのモジュール。
+  module DeepCopy
+    #===複製を取得する
+    #ただし、再定義しているクラス(例:Arrayクラス)以外はdupメソッドの結果
+    #返却値:: 複写したインスタンスを返す
+    def deep_dup
+      self.dup
+    end
+
+    #===複製を取得する
+    #ただし、再定義しているクラス(例:Arrayクラス)以外はdupメソッドの結果
+    #返却値:: 複写したインスタンスを返す
+    def deep_clone
+      self.deep_dup
+    end
+  end
+end
+
+class Object
+  include Miyako::DeepCopy
+end
+
+class Array
+  include Miyako::SpriteArray
+
+  #===複製を取得する
+  #ただし、配列の要素もdeep_dupメソッドで複製する
+  #返却値:: 複写したインスタンスを返す
+  def deep_dup
+    self.dup.map{|e| e.deep_dup}
+  end
+end
+
+class Hash
+  #===複製を取得する
+  #ただし、配列の要素もdeep_dupメソッドで複製する
+  #返却値:: 複写したインスタンスを返す
+  def deep_dup
+    ret = self.dup
+    ret.keys.each{|key| ret[key] = ret[key].deep_dup }
+    ret
   end
 end

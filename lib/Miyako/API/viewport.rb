@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 =begin
 --
-Miyako v2.0
+Miyako v2.1
 Copyright (C) 2007-2008  Cyross Makoto
 
 This library is free software; you can redistribute it and/or
@@ -26,6 +26,9 @@ module Miyako
   # 画面全体を基準(640x480の画面のときは(0,0)-(639,479)の範囲)として、範囲を設定する
   # 範囲の設定はいつでも行えるが、描画にはrenderメソッドを呼び出した時の値が反映される
   class Viewport
+    include SpriteBase
+    include Animation
+    
     attr_accessor :visible #レンダリングの可否(true->描画 false->非描画)
 
     #===ビューポートのインスタンスを生成する
@@ -34,10 +37,15 @@ module Miyako
     #_w_:: ビューポートの幅(共に1以上、0以下のときはエラーが出る)
     #_h_:: ビューポートの高さ(共に1以上、0以下のときはエラーが出る)
     def initialize(x, y, w, h)
-      raise MiyakoError, "Illegal size! w:#{w} h:#{h}" if (w <= 0 || h <= 0)
+      raise MiyakoValueError, "Illegal size! w:#{w} h:#{h}" if (w <= 0 || h <= 0)
       @rect = Rect.new(x, y, w, h)
       @sq = Rect.new(x, y, x+w-1, y+h-1)
       @visible = true
+    end
+    
+    def initialize_copy(obj) #:nodoc:
+      @rect = @rect.dup
+      @sq = @sq.dup
     end
 
     #===ビューポートの内容を画面に反映する
@@ -101,7 +109,7 @@ module Miyako
     #_dh_:: 高さ
     #返却値:: 自分自身を返す
     def resize(dw,dh)
-      raise MiyakoError, "Illegal size! w:#{w} h:#{h}" if ((@rect.w + dw) <= 0 || (@rect.h + dh) <= 0)
+      raise MiyakoValueError, "Illegal size! w:#{w} h:#{h}" if ((@rect.w + dw) <= 0 || (@rect.h + dh) <= 0)
       @rect.resize(dw, dh)
       @sq.resize(dw, dh)
       return self
@@ -113,7 +121,7 @@ module Miyako
     #_h_:: 高さ
     #返却値:: 自分自身を返す
     def resize_to(w,h)
-      raise MiyakoError, "Illegal size! w:#{w} h:#{h}" if (w <= 0 || h <= 0)
+      raise MiyakoValueError, "Illegal size! w:#{w} h:#{h}" if (w <= 0 || h <= 0)
       @rect.resize_to(w,h)
       @sq.resize_to(w, h)
       return self

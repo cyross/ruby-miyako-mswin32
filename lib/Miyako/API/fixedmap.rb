@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 =begin
 --
-Miyako v2.0
+Miyako v2.1
 Copyright (C) 2007-2009  Cyross Makoto
 
 This library is free software; you can redistribute it and/or
@@ -26,6 +26,8 @@ require 'forwardable'
 module Miyako
   #==スクロールしないマップクラス
   class FixedMap
+    include SpriteBase
+    include Animation
     include Layout
     
     @@idx_ix = [-1, 2, 4]
@@ -36,6 +38,8 @@ module Miyako
 
     #==あとで書く
     class FixedMapLayer #:nodoc: all
+      include SpriteBase
+      include Animation
       extend Forwardable
 
       @@use_chip_list = Hash.new(nil)
@@ -87,6 +91,26 @@ module Miyako
                                    :ow => @ow, :oh => @oh)
         }
         reSize
+      end
+    
+      def initialize_copy(obj) #:nodoc:
+        @mapchip = @mapchip.dup
+        @size = @size.dup
+        @mapchip_unit = @mapchip_unit.dup
+        @divpx = get_div_array(0, @real_size.w, @ow)
+        @divpy = get_div_array(0, @real_size.h, @oh)
+        @modpx = get_mod_array(0, @real_size.w, @ow)
+        @modpy = get_mod_array(0, @real_size.h, @oh)
+        @modpx2 = get_mod_array(0, @size.w * 2 + 1, @size.w)
+        @modpy2 = get_mod_array(0, @size.h * 2 + 1, @size.h)
+        @cdivsx = get_div_array(0, @mapchip.chips, @mapchip.size.w)
+        @cmodsx = get_mod_array(0, @mapchip.chips, @mapchip.size.w)
+        @cdivsy = get_div_array(0, @mapchip.chips, @mapchip.size.h)
+        @cmodsy = get_mod_array(0, @mapchip.chips, @mapchip.size.h)
+        @cdivsx = @cdivsx.map{|v| v * @ow }
+        @cdivsy = @cdivsy.map{|v| v * @oh }
+        @cmodsx = @cmodsx.map{|v| v * @ow }
+        @cmodsy = @cmodsy.map{|v| v * @oh }
       end
 
       def get_div_array(s, t, v) #:nodoc:
@@ -238,6 +262,7 @@ module Miyako
     #_event_manager_:: MapEventManagerクラスのインスタンス
     #返却値:: 生成したインスタンス
     def initialize(mapchips, layer_csv, event_manager)
+      raise MiyakoIOError.no_file(layer_csv) unless File.exist?(layer_csv)
       init_layout
       @visible = true
       @event_layers = []
@@ -246,7 +271,7 @@ module Miyako
       @mapchips = mapchips.to_a
       layer_data = CSV.readlines(layer_csv)
 
-      raise MiyakoError, "This file is not Miyako Map Layer file! : #{layer_csv}" unless layer_data.shift[0] == "Miyako Maplayer"
+      raise MiyakoFileFormatError, "This file is not Miyako Map Layer file! : #{layer_csv}" unless layer_data.shift[0] == "Miyako Maplayer"
 
       tmp = layer_data.shift # 空行の空読み込み
 
@@ -292,6 +317,15 @@ module Miyako
         @map_layers.push(FixedMapLayer.new(mc.next, br, @size))
       }
       set_layout_size(@w, @h)
+    end
+    
+    def initialize_copy(obj) #:nodoc:
+      @map_layers = @map_layers.dup
+      @event_layers = @event_layers.dup
+      @em = em.dup
+      @mapchips = @mapchips.dup
+      @size = @size.dup
+      copy_layout
     end
 
     #===マップにイベントを追加する

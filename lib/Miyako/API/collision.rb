@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 =begin
 --
-Miyako v2.0
+Miyako v2.1
 Copyright (C) 2007-2009  Cyross Makoto
 
 This library is free software; you can redistribute it and/or
@@ -41,12 +41,17 @@ module Miyako
     #返却値:: 作成されたコリジョン
     def initialize(rect, circum = true)
       @rect = Rect.new(*(rect.to_a[0..3]))
-      raise MiyakoError, "Illegal width! #{@rect[2]}" if @rect[2] < Float::EPSILON
-      raise MiyakoError, "Illegal height! #{@rect[3]}" if @rect[3] < Float::EPSILON
+      raise MiyakoValueError, "Illegal width! #{@rect[2]}" if @rect[2] < Float::EPSILON
+      raise MiyakoValueError, "Illegal height! #{@rect[3]}" if @rect[3] < Float::EPSILON
       w = @rect[2].to_f
       h = @rect[2].to_f
       @center = Point.new(@rect[0].to_f + w / 2.0, @rect[1].to_f + h / 2.0)
       @radius = circum ? Math.sqrt(w ** 2 + h ** 2) / 2.0 : [w, h].min / 2.0
+    end
+
+    def initialize_copy(obj) #:nodoc:
+      @rect = @rect.dup
+      @center = @center.dup
     end
 
     #===当たり判定を行う(領域が重なっている)
@@ -175,7 +180,7 @@ module Miyako
     #_circum_:: 矩形当たり判定とみなす時、円を外接円とするときはtrueを設定する。デフォルトはtrue
     #返却値:: 作成されたコリジョン
     def initialize(center, radius, circum = true)
-      raise MiyakoError, "illegal radius! #{radius}" if radius < Float::EPSILON
+      raise MiyakoValueError, "illegal radius! #{radius}" if radius < Float::EPSILON
       @center = Point.new(*(center.to_a[0..1]))
       @radius = radius
       if circum
@@ -184,6 +189,11 @@ module Miyako
       else
         @rect = Rect.new(@center[0]-@radius, @center[1]-@radius, @radius*2.0, @radius*2.0)
       end
+    end
+
+    def initialize_copy(obj) #:nodoc:
+      @rect = @rect.dup
+      @center = @center.dup
     end
 
     #===当たり判定間の距離を算出する
@@ -310,6 +320,22 @@ module Miyako
     #返却値:: 作成されたインスタンス
     def initialize(collisions=[], points=[])
       @collisions = Array.new(collisions).zip(points)
+    end
+
+    def initialize_copy(obj) #:nodoc:
+      @collisions = @collisions.dup
+    end
+
+    def deep_dup_collision #:nodocs:
+      @collisions = @collisions.deep_dup
+      return self
+    end
+
+    #===要素も複製した複製インスタンスを返す
+    #返却値:: 複製したインスタンスを返す
+    def deep_dup
+      ret = self.dup
+      ret.deep_dup_collision
     end
 
     #===コリジョンと位置情報を追加する

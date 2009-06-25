@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 =begin
 --
-Miyako v1.5
+Miyako v2.1
 Copyright (C) 2007-2009  Cyross Makoto
 
 This library is free software; you can redistribute it and/or
@@ -114,7 +114,7 @@ module Miyako
         @pat_len  = @slist.length
         @pats     = @slist.length
       else
-        raise MiyakoError, "Illegal sprite list for SpriteAnimation."
+        raise MiyakoTypeError, "Illegal sprite list for SpriteAnimation."
       end
 
       if @plist
@@ -202,7 +202,7 @@ module Miyako
         elsif wait.kind_of?(Float)
           @waits = Array.new(@pats){|pat| WaitCounter.new(wait)}
         else
-          raise MiyakoError, "Illegal wait counter for SpriteAnimation."
+          raise MiyakoTypeError, "Illegal counter class for SpriteAnimation."
         end
       elsif @waits.length < @pats
         @waits = @waits.cycle.take(@pats)
@@ -219,6 +219,16 @@ module Miyako
       @now = @units[0]
       @now.move_to(@slist[@plist[@pnum]].x + @move_offset[@pnum][0],
                    @slist[@plist[@pnum]].y + @move_offset[@pnum][1])
+    end
+    
+    def initialize_copy(obj) #:nodoc:
+      @units = @units.deep_dup
+      @slist = @slist.deep_dup
+      @plist = @plist.dup
+      @move_offset = @move_offset.dup
+      @pos_offset = @pos_offset.dup
+      @now = @units[@plist[@pnum]]
+      copy_layout
     end
 
     attr_accessor :visible
@@ -412,10 +422,10 @@ module Miyako
     end
 
     #===現在実行中のパターンの元になったスプライトユニットを返す
-    #得られるインスタンスは複写していないので、インスタンスの値を調整するには、dupメソッドで複製する必要がある
+    #得られるインスタンスは内部でしようしてるものの複写
     #返却値:: 現在表示しているスプライトユニット
     def to_unit
-      return @now
+      return @now.dup
     end
     
     #=== 現在実行中のパターンの画像を返す

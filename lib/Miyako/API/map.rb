@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 =begin
 --
-Miyako v2.0
+Miyako v2.1
 Copyright (C) 2007-2009  Cyross Makoto
 
 This library is free software; you can redistribute it and/or
@@ -44,8 +44,9 @@ module Miyako
     #_csv_filename_:: マップチップファイル名(CSVファイル)
     #_use_alpha_:: 画像にαチャネルを使うかどうかのフラグ。trueのときは画像のαチャネルを使用、falseのときはカラーキーを使用。デフォルトはtrue
     def MapChipFactory.load(csv_filename, use_alpha = true)
+      raise MiyakoIOError.no_file(csv_filename) unless File.exist?(csv_filename)
       lines = CSV.read(csv_filename)
-      raise MiyakoError, "This file is not Miyako Map Chip file! : #{csv_filename}" unless lines.shift[0] == "Miyako Mapchip"
+      raise MiyakoFileFormatError, "This file is not Miyako Map Chip file! : #{csv_filename}" unless lines.shift[0] == "Miyako Mapchip"
       spr = use_alpha ? Sprite.new({:filename => lines.shift[0], :type => :alpha_channel}) : Sprite.new({:file_name => lines.shift[0], :type => :color_key})
       tmp = lines.shift
       chip_size = Size.new(tmp[0].to_i, tmp[1].to_i)
@@ -93,8 +94,8 @@ module Miyako
     #_direction_:: 方向を示すシンボル(:left, :right, :up, :down)
     #返却値:: アクセステーブルの指標番号(整数)
     def AccessIndex.index(state, direction)
-      raise MiyakoError, "can't find AcceessIndex state symbol! #{state}" unless @@accesses.has_key?(state)
-      raise MiyakoError, "can't find AcceessIndex direction symbol! #{direction}" unless @@accesses[state].has_key?(direction)
+      raise MiyakoValueError, "can't find AcceessIndex state symbol! #{state}" unless @@accesses.has_key?(state)
+      raise MiyakoValueError, "can't find AcceessIndex direction symbol! #{direction}" unless @@accesses[state].has_key?(direction)
       return @@accesses[state][direction]
     end
 
@@ -107,13 +108,16 @@ module Miyako
     #_dy_:: y方向移動量
     #返却値:: アクセステーブルの指標番号(整数)。何も移動しない場合は-1が返る
     def AccessIndex.index2(state, dx, dy)
-      raise MiyakoError, "can't find AcceessIndex state symbol! #{state}" unless @@accesses.has_key?(state)
+      raise MiyakoValueError, "can't find AcceessIndex state symbol! #{state}" unless @@accesses.has_key?(state)
       return @@accesses2[state][dx < -1 ? -1 : dx > 1 ? 1 : 0][dy < -1 ? -1 : dy > 1 ? 1 : 0]
     end
   end
 
   #==マップ定義クラス
   class Map
+    include SpriteBase
+    include Animation
+
     @@idx_ix = [-1, 2, 4]
     @@idx_iy = [-1, 0, 6]
 
@@ -121,6 +125,8 @@ module Miyako
     attr_reader :map_layers, :mapchips, :pos, :size, :w, :h
 
     class MapLayer #:nodoc: all
+      include SpriteBase
+      include Animation
       extend Forwardable
 
       attr_accessor :visible #レンダリングの可否(true->描画 false->非描画)
@@ -169,6 +175,26 @@ module Miyako
         }
         @visible = true
         resize
+      end
+    
+      def initialize_copy(obj) #:nodoc:
+        @mapchip = @mapchip.dup
+        @size = @size.dup
+        @mapchip_unit = @mapchip_unit.dup
+        @divpx = get_div_array(0, @real_size.w, @ow)
+        @divpy = get_div_array(0, @real_size.h, @oh)
+        @modpx = get_mod_array(0, @real_size.w, @ow)
+        @modpy = get_mod_array(0, @real_size.h, @oh)
+        @modpx2 = get_mod_array(0, @size.w * 2 + 1, @size.w)
+        @modpy2 = get_mod_array(0, @size.h * 2 + 1, @size.h)
+        @cdivsx = get_div_array(0, @mapchip.chips, @mapchip.size.w)
+        @cmodsx = get_mod_array(0, @mapchip.chips, @mapchip.size.w)
+        @cdivsy = get_div_array(0, @mapchip.chips, @mapchip.size.h)
+        @cmodsy = get_mod_array(0, @mapchip.chips, @mapchip.size.h)
+        @cdivsx = @cdivsx.map{|v| v * @ow }
+        @cdivsy = @cdivsy.map{|v| v * @oh }
+        @cmodsx = @cmodsx.map{|v| v * @ow }
+        @cmodsy = @cmodsy.map{|v| v * @oh }
       end
 
       def get_div_array(s, t, v) #:nodoc:
@@ -315,6 +341,7 @@ module Miyako
     #_event_manager_:: MapEventManagerクラスのインスタンス
     #返却値:: 生成したインスタンス
     def initialize(mapchips, layer_csv, event_manager)
+      raise MiyakoIOError.no_file(layer_csv) unless File.exist?(layer_csv)
       @event_layers = []
       @em = event_manager.dup
       @em.set(self)
@@ -322,7 +349,7 @@ module Miyako
       @visible = true
       @pos = Point.new(0, 0)
       layer_data = CSV.readlines(layer_csv)
-      raise MiyakoError, "This file is not Miyako Map Layer file! : #{layer_csv}" unless layer_data.shift[0] == "Miyako Maplayer"
+      raise MiyakoFileFormatError, "This file is not Miyako Map Layer file! : #{layer_csv}" unless layer_data.shift[0] == "Miyako Maplayer"
 
       tmp = layer_data.shift # 空行の空読み込み
 
@@ -365,6 +392,15 @@ module Miyako
         br = br.map{|b| b.map{|bb| bb >= @mapchips.first.chips ? -1 : bb } }
         @map_layers.push(MapLayer.new(mc.next, br, @size))
       }
+    end
+    
+    def initialize_copy(obj) #:nodoc:
+      @map_layers = @map_layers.dup
+      @event_layers = @event_layers.dup
+      @em = em.dup
+      @mapchips = @mapchips.dup
+      @size = @size.dup
+      @pos = @pos.dup
     end
 
     #===マップにイベントを追加する

@@ -1,14 +1,14 @@
 # -*- encoding: utf-8 -*-
 #
-#=コンテンツ作成ライブラリMiyako2.0
+#=コンテンツ作成ライブラリMiyako2.1
 #
 #Authors:: サイロス誠
-#Version:: 2.0.0
+#Version:: 2.1.0
 #Copyright:: 2007-2009 Cyross Makoto
 #License:: LGPL2.1
 #
 =begin
-Miyako v2.0
+Miyako v2.1
 Copyright (C) 2007-2008  Cyross Makoto
 
 This library is free software; you can redistribute it and/or
@@ -43,6 +43,9 @@ require 'iconv' if RUBY_VERSION < '1.9.0'
 require 'kconv'
 require 'rbconfig'
 
+#画面などの初期設定を自動的に行うかどうかの設定。デフォルトはtrue
+$miyako_auto_open = true if $miyako_auto_open.nil?
+
 #デバッグモードの設定。デバッグモードにするときはtrueを渡す。デフォルトはfalse
 $miyako_debug_mode ||= false
 
@@ -52,16 +55,12 @@ $miyako_use_opengl ||= false
 #サウンド機能を使わないときは、miyako.rbをロードする前に
 #$not_use_audio変数にtrueを割り当てる
 $not_use_audio ||= false
-if $not_use_audio
-  SDL.init(SDL::INIT_VIDEO | SDL::INIT_JOYSTICK)
-else
-  SDL.init(SDL::INIT_VIDEO | SDL::INIT_AUDIO | SDL::INIT_JOYSTICK)
-end
 
 Thread.abort_on_exception = true
 
 #==Miyako基幹モジュール
 module Miyako
+  VERSION = "2.1.0"
 
   #===アプリケーション実行中に演奏する音楽のサンプリングレートを指定する
   #単位はHz(周波数)
@@ -73,17 +72,10 @@ module Miyako
   #デフォルトは4096バイト
   $sound_buffer_size ||= 4096
 
-  SDL::TTF.init
-  SDL::Mixer.open($sampling_seq, SDL::Mixer::DEFAULT_FORMAT, 2, $sound_buffer_size) unless $not_use_audio
-
   #===Miyakoのバージョン番号を出力する
   #返却値:: バージョン番号を示す文字列
   def Miyako::version
-    return "2.0.0"
-  end
-
-  #==Miyakoの例外クラス
-  class MiyakoError < Exception
+    return VERSION
   end
   
   osn = Config::CONFIG["target_os"].downcase
@@ -123,10 +115,11 @@ module Miyako
   end
 end
 
+require 'Miyako/API/exceptions'
 require 'Miyako/API/utility'
-require 'Miyako/API/yuki'
 require 'Miyako/API/basic_data'
 require 'Miyako/API/modules'
+require 'Miyako/API/yuki'
 require 'Miyako/API/font'
 require 'Miyako/API/viewport'
 require 'Miyako/API/layout'
@@ -135,6 +128,7 @@ require 'Miyako/API/drawing'
 require 'Miyako/API/spriteunit'
 require 'Miyako/API/sprite_animation'
 require 'Miyako/API/sprite'
+require 'Miyako/API/sprite_list'
 require 'Miyako/API/collision'
 require 'Miyako/API/screen'
 require 'Miyako/API/shape'
@@ -152,20 +146,54 @@ require 'Miyako/API/story'
 require 'Miyako/API/diagram'
 
 module Miyako
+  @@initialized = false
+
   #===Miyakoのメインループ
   #ブロックを受け取り、そのブロックを評価する
-  #ブロック評価前に<i>Input::update</i>と<i>Screen::clear</i>、評価後に<i>Screen::render</i>を呼び出す
+  #ブロック評価前に<i>Audio::update</i>と<i>Input::update</i>、<i>Screen::clear</i>、評価後に<i>Screen::render</i>を呼び出す
   #
   #ブロックを渡さないと例外が発生する
   def Miyako.main_loop
     raise MiyakoError, "Miyako.main_loop needs brock!" unless block_given?
     loop do
-      Input::update
-      Screen::clear
+      Audio.update
+      Input.update
+      Screen.clear
       yield
-      Screen::render
+      Screen.render
     end
+  end
+
+  #===SDLの初期化
+  def Miyako.init
+    if $not_use_audio
+      SDL.init(SDL::INIT_VIDEO | SDL::INIT_JOYSTICK)
+    else
+      SDL.init(SDL::INIT_VIDEO | SDL::INIT_AUDIO | SDL::INIT_JOYSTICK)
+    end
+    @@initialized = true
+  end
+
+  #===Miyako(SDL)が初期化された？
+  def Miyako.initialized?
+    @@initialized
+  end
+  
+  #===Miyakoの初期化
+  #画面初期化や音声初期化などのメソッドを呼び出す。
+  #グローバル変数$miyako_auto_openがtrueのときは最初に自動的に呼び出される。
+  #ユーティリティメソッドを使うだけならば、$miyako_auto_open=falseを設定して、後々Miyako.openを呼び出す。
+  #_screen_:: 別のプロセスで生成されたSDL::Screenクラスのインスタンス。省略時はnil
+  #_buf_size_:: Audioモジュールで使用するバッファサイズ。単位はバイト。省略時は4096
+  #_seq_:: Audioモジュールで使用する音声の再生サンプル周波数。省略時は44100(44.1kHz)
+  def Miyako.open(screen = nil, buf_size = 4096, seq = 44100)
+    Miyako.init
+    Screen.init(screen)
+    Font.init
+    Audio.init(buf_size, seq)
   end
 end
 
 require 'Miyako/miyako_no_katana'
+
+Miyako.open(nil, $sound_buffer_size, $sampling_seq) if $miyako_auto_open

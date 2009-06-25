@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 =begin
 --
-Miyako v2.0
+Miyako v2.1
 Copyright (C) 2007-2009  Cyross Makoto
 
 This library is free software; you can redistribute it and/or
@@ -32,6 +32,8 @@ module Miyako
   #プロットは、引数を一つ（Yuki2クラスのインスタンス）を取ったメソッドもしくはブロック
   #として記述する。
   class Yuki
+    include SpriteBase
+    include Animation
   
     #==キャンセルを示す構造体
     #コマンド選択がキャンセルされたときに生成される構造体
@@ -83,7 +85,7 @@ module Miyako
 
     attr_accessor :visible
     attr_accessor :update_inner, :update_text, :update_cr, :update_clear
-    attr_reader :parts, :vars, :valign
+    attr_reader :valign
     #release_checks:: ポーズ解除を問い合わせるブロックの配列。
     #callメソッドを持ち、true/falseを返すインスタンスを配列操作で追加・削除できる。
     #ok_checks:: コマンド選択決定を問い合わせるブロックの配列。
@@ -101,18 +103,33 @@ module Miyako
     #callメソッドを持つブロックが使用可能。
     attr_reader :selecting_procs
     
+    #===Yukiにメソッドを追加する
+    #ブロックを渡すことで、Yukiに新しいメソッドを追加できる。
+    #コンテキストはYukiクラスのインスタンスとなるため、Yukiスクリプトと同じ感覚でメソッドを追加できる。
+    #ただし、すでに追加したメソッド(もしくはYukiクラスですでに追加されているメソッド)を追加しようとすると例外が発生する
+    #
+    #_name_:: ブロックに渡す引数リスト
+    #_block_:: メソッドとして実行させるブロック
+    def Yuki.add_method(name, &block)
+      name = name.to_sym
+      raise MiyakoError, "Already added method! : #{name.to_s}" if self.methods.include?(name)
+      define_method(name, block)
+      return nil
+    end
+
     #===Yukiを初期化する
     #
     #ブロック引数として、テキストボックスの変更などの処理をブロック内に記述することが出来る。
     #引数の数とブロック引数の数が違っていれば例外が発生する
-    #_params_:: ブロックに渡す引数リスト
+    #_params_:: ブロックに渡す引数リスト(ただし、ブロックを渡しているときのみに有効)
     def initialize(*params, &proc)
       @yuki = { }
+      @over_yuki = nil
+      @over_exec = false
       @text_box = nil
       @command_box = nil
 
       @executing = false
-      @with_update_input = true
 
       @exec_plot = nil
       
@@ -135,7 +152,7 @@ module Miyako
       @update_clear = lambda{|yuki|}
       
       @parts = {}
-      @visibles = []
+      @visibles = SpriteList.new
       @vars = {}
       @visible = true
 
@@ -147,14 +164,14 @@ module Miyako
 
       @valign = :middle
 
-      @release_checks_default = [lambda{ Input.pushed_all?(:btn1) }, lambda{ Input.click?(:left) } ]
+      @release_checks_default = [lambda{ Input.pushed_any?(:btn1, :spc) }, lambda{ Input.click?(:left) } ]
       @release_checks = @release_checks_default.dup
       
-      @ok_checks_default = [lambda{ Input.pushed_all?(:btn1) },
+      @ok_checks_default = [lambda{ Input.pushed_any?(:btn1, :spc) },
                             lambda{ self.commandbox.attach_any_command?(*Input.get_mouse_position) && Input.click?(:left) } ]
       @ok_checks = @ok_checks_default.dup
 
-      @cancel_checks_default = [lambda{ Input.pushed_all?(:btn2) },
+      @cancel_checks_default = [lambda{ Input.pushed_any?(:btn2, :esc) },
                                 lambda{ Input.click?(:right) } ]
       @cancel_checks = @cancel_checks_default.dup
 
@@ -174,23 +191,160 @@ module Miyako
       @now_page = nil
       @first_page = nil
       
-      raise MiyakoError, "Aagument count is not same block parameter count!" if proc && proc.arity.abs != params.length
+      raise MiyakoProcError, "Aagument count is not same block parameter count!" if proc && proc.arity.abs != params.length
       instance_exec(*params, &proc) if block_given?
+    end
+
+    def initialize_copy(obj) #:nodoc:
+      @yuki = @yuki.dup
+      @over_exec = false
+      @text_box = @text_box.dup
+      @command_box = @command_box.dup
+
+      @exec_plot = @exec_plot.dup
+      
+      @select_amount = @select_amount.dup
+      @mouse_amount = @mouse_amount.dup
+
+      @result = @result.dup
+      @plot_result = @plot_result.dup
+
+      @update_inner = @update_inner.dup
+      @update_text  = @update_text.dup
+      @update_cr    = @update_cr.dup
+      @update_clear = @update_clear.dup
+      
+      @parts = @parts.deep_dup
+      @visibles = @visibles.deep_dup
+      @vars = @vars.deep_dup
+
+      @executing_fiber = @executing_fiber.dup
+
+      @text_methods = @text_methods.dup
+
+      @release_checks = @release_checks.dup
+      
+      @ok_checks = @ok_checks.dup
+
+      @cancel_checks = @cancel_checks.dup
+
+      @key_amount_proc   = @key_amount_proc.dup
+      @mouse_amount_proc = @mouse_amount_proc.dup
+
+      @pre_pause    = @pre_pause.dup
+      @pre_command  = @pre_command.dup
+      @pre_cancel   = @pre_cancel.dup
+      @post_pause   = @post_pause.dup
+      @post_command = @post_command.dup
+      @post_cancel  = @post_cancel.dup
+      @selecting_procs = @selecting_procs.dup
+      
+      @is_outer_height = @is_outer_height.dup
+
+      @now_page = @now_page.dup
+      @first_page = @first_page.dup.dup
+    end
+
+    #===Yuki#showで表示指定した画像を描画する
+    #描画順は、showメソッドで指定した順に描画される(先に指定した画像は後ろに表示される)
+    #なお、visibleの値がfalseの時は描画されない。
+    #返却値:: 自分自身を返す
+    def render
+      @visibles.render if @visible
+      @over_yuki.render if @over_yuki && @over_yuki.executing?
+      return self
     end
     
     #===Yuki#showで表示指定した画像を描画する
     #描画順は、showメソッドで指定した順に描画される(先に指定した画像は後ろに表示される)
     #なお、visibleの値がfalseの時は描画されない。
     #返却値:: 自分自身を返す
-    def render
-      return self unless @visible
-      @visibles.each{|name|
-        @parts[name].render if @parts.has_key?(name)
-      }
+    def render_to(dst)
+      @visibles.render_to(dst) if @visible
+      @over_yuki.render_to(dst) if @over_yuki && @over_yuki.executing?
       return self
+    end
+    
+    #===Yuki#showで表示指定した画像のアニメーションを更新する
+    #showメソッドで指定した画像のupdate_animationメソッドを呼び出す
+    #返却値:: 描く画像のupdate_spriteメソッドを呼び出した結果を配列で返す
+    def update_animation
+      @over_yuki.update_animation if @over_yuki && @over_yuki.executing?
+      @visibles.update_animation
+    end
+
+    #===変数を参照する
+    #[[Yukiスクリプトとして利用可能]]
+    #変数の管理オブジェクトを、ハッシュとして参照する。
+    #変数名nameを指定して、インスタンスを参照できる。
+    #未登録の変数はnilが変える。
+    #(例)vars[:a] = 2 # 変数への代入
+    #    vars[:b] = vars[:a] + 5
+    #    show vars[:my_name]
+    #
+    #_name_:: パーツ名（シンボル）
+    #
+    #返却値:: 変数管理ハッシュ
+    def vars
+      @vars
+    end
+
+    #===変数を参照する
+    #[[Yukiスクリプトとして利用可能]]
+    #変数の管理オブジェクトを、ハッシュとして参照する。
+    #変数名nameを指定して、インスタンスを参照できる。
+    #未登録の変数はnilが変える。
+    #(例)vars[:a] = 2 # 変数への代入
+    #    vars[:b] = vars[:a] + 5
+    #    vars_names => [:a, :b]
+    #
+    #_name_:: パーツ名（シンボル）
+    #
+    #返却値:: 変数管理ハッシュ
+    def vars_names
+      @vars.keys
+    end
+
+    #===パーツを参照する
+    #[[Yukiスクリプトとして利用可能]]
+    #パーツの管理オブジェクトを、ハッシュとして参照する。
+    #パーツ名nameを指定して、インスタンスを参照できる
+    #未登録のパーツはnilが返る
+    #(例)parts[:chr1]
+    #
+    #返却値:: パーツ管理ハッシュ
+    def parts
+      @parts
+    end
+
+    #===パーツ名の一覧を参照する
+    #[[Yukiスクリプトとして利用可能]]
+    #パーツ管理オブジェクトに登録されているパーツ名の一覧を配列として返す。
+    #順番は登録順。
+    #まだ何も登録されていないときは空の配列が返る。
+    #(例)regist_parts :chr1, hoge
+    #    regist_parts :chr2, fuga
+    #    parts_names # => [:chr1, :chr2]
+    #
+    #返却値:: パーツ管理ハッシュ
+    def parts_names
+      @parts.keys
+    end
+
+    #===現在描画対象のパーツ名のリストを取得する
+    #[[Yukiスクリプトとして利用可能]]
+    #現在描画しているパーツ名の配列を参照する。
+    #実体のインスタンスは、partsメソッドで参照できるハッシュの値として格納されている。
+    #Yuki#renderで描画する際、配列の先頭から順に、要素に対応するインスタンスを描画する(つまり、配列の後ろにある方が前に描画される
+    #(例):[:a, :b, :c]の順に並んでいたら、:cが指すインスタンスが一番前に描画される。
+    #
+    #返却値:: 描画対象リスト
+    def visibles
+      @visibles.names
     end
 
     #===オブジェクトを登録する
+    #[[Yukiスクリプトとして利用可能]]
     #オブジェクトをパーツnameとして登録する。
     #Yuki::parts[name]で参照可能
     #_name_:: パーツ名（シンボル）
@@ -203,6 +357,7 @@ module Miyako
     end
   
     #===表示・描画対象のテキストボックスを選択する
+    #[[Yukiスクリプトとして利用可能]]
     #_box_:: テキストボックスのインスタンス
     #
     #返却値:: 自分自身を返す
@@ -212,6 +367,7 @@ module Miyako
     end
   
     #===表示・描画対象のコマンドボックスを選択する
+    #[[Yukiスクリプトとして利用可能]]
     #_box_:: テキストボックスのインスタンス
     #
     #返却値:: 自分自身を返す
@@ -221,6 +377,7 @@ module Miyako
     end
   
     #===テキストボックスを取得する
+    #[[Yukiスクリプトとして利用可能]]
     #テキストボックスが登録されていないときはnilを返す
     #返却値:: テキストボックスのインスタンス
     def textbox
@@ -228,6 +385,7 @@ module Miyako
     end
   
     #===コマンドボックスを取得する
+    #[[Yukiスクリプトとして利用可能]]
     #コマンドボックスが登録されていないときはnilを返す
     #返却値:: コマンドボックスのインスタンス
     def commandbox
@@ -235,6 +393,7 @@ module Miyako
     end
   
     #===オブジェクトの登録を解除する
+    #[[Yukiスクリプトとして利用可能]]
     #パーツnameとして登録されているオブジェクトを登録から解除する。
     #_name_:: パーツ名（シンボル）
     #
@@ -245,29 +404,29 @@ module Miyako
     end
   
     #===パーツで指定したオブジェクトを先頭に表示する
+    #[[Yukiスクリプトとして利用可能]]
     #描画時に、指定したパーツを描画する
     #すでにshowメソッドで表示指定している場合は、先頭に表示させる
     #_names_:: パーツ名（シンボル）、複数指定可能(指定した順番に描画される)
     #返却値:: 自分自身を返す
     def show(*names)
-      names.each{|name|
-        @visibles.delete(name)
-        @visibles << name
-      }
+      names.each{|name| @visibles.push(name, @parts[name]); @parts[name].show }
       return self
     end
   
     #===パーツで指定したオブジェクトを隠蔽する
+    #[[Yukiスクリプトとして利用可能]]
     #描画時に、指定したパーツを描画させないよう指定する
     #_names_:: パーツ名（シンボル）、複数指定可能
     #返却値:: 自分自身を返す
     def hide(*names)
-      names.each{|name| @visibles.delete(name) }
+      names.each{|name| @parts[name].hide; @visibles.delete(name) }
       return self
     end
   
     #===パーツで指定したオブジェクトの処理を開始する
-    #nameで指定したパーツが持つ処理を隠蔽する。
+    #[[Yukiスクリプトとして利用可能]]
+    #nameで指定したパーツが持つ処理(例：アニメーション)を開始する。
     #（但し、パーツで指定したオブジェクトがstartメソッドを持つことが条件）
     #_name_:: パーツ名（シンボル）
     #返却値:: 自分自身を返す
@@ -277,7 +436,8 @@ module Miyako
     end
   
     #===パーツで指定したオブジェクトを再生する
-    #nameで指定したパーツを再生する。
+    #[[Yukiスクリプトとして利用可能]]
+    #nameで指定したパーツを再生(例:BGM)する。
     #（但し、パーツで指定したオブジェクトがplayメソッドを持つことが条件）
     #_name_:: パーツ名（シンボル）
     #返却値:: 自分自身を返す
@@ -287,6 +447,7 @@ module Miyako
     end
   
     #===パーツで指定したオブジェクトの処理を停止する
+    #[[Yukiスクリプトとして利用可能]]
     #nameで指定したパーツが持つ処理を停止する。
     #（但し、パーツで指定したオブジェクトがstopメソッドを持つことが条件）
     #_name_:: パーツ名（シンボル）
@@ -297,6 +458,7 @@ module Miyako
     end
   
     #===遷移図の処理が終了するまで待つ
+    #[[Yukiスクリプトとして利用可能]]
     #nameで指定した遷移図の処理が終了するまで、プロットを停止する
     #_name_: 遷移図名（シンボル）
     #返却値:: 自分自身を返す
@@ -306,12 +468,43 @@ module Miyako
       end
       return self
     end
+
+    #===別のYukiエンジンを実行する
+    #[[Yukiスクリプトとして利用可能]]
+    #もう一つのYukiエンジンを実行させ、並行実行させることができる
+    #ウインドウの上にウインドウを表示したりするときに、このメソッドを使う
+    #renderメソッドで描画する際は、自分のインスタンスが描画した直後に描画される
+    #自分自身を実行しようとするとMiyakoValueError例外が発生する
+    #_yuki_:: 実行対象のYukiインスタンス(事前にsetupの呼び出しが必要)
+    #_plot_:: プロットインスタンス。すでにsetupなどで登録しているときはnilを渡す
+    #_params_:: プロット実行開始時に、プロットに渡す引数
+    #返却値:: 自分自身を返す
+    def over_exec(yuki, plot, *params)
+      raise MiyakoValueError, "This Yuki engine is same as self!" if yuki.eql?(self)
+      @over_yuki = yuki
+      @over_yuki.start_plot(plot, *params)
+      return self
+    end
+
+    #===別のYukiエンジンの実行が終わるまで待つ
+    #[[Yukiスクリプトとして利用可能]]
+    #over_execを呼び出した時、処理がすぐに次の行へ移るため、
+    #over_execの処理が終了するのを待たせるためのメソッド
+    #返却値:: 自分自身を返す
+    def wait_over_exec
+      @over_exec = true
+      while @over_yuki && @over_yuki.executing?
+        @over_yuki.update
+        Fiber.yield
+      end
+      return self
+    end
   
     #===シーンのセットアップ時に実行する処理
     #
     #ブロック引数として、テキストボックスの変更などの処理をブロック内に記述することが出来る。
     #引数の数とブロック引数の数が違っていれば例外が発生する
-    #_params_:: ブロックに渡す引数リスト
+    #_params_:: ブロックに渡す引数リスト(ブロックを渡しているときのみ)
     #返却値:: 自分自身を返す
     def setup(*params, &proc)
       @exec_plot = nil
@@ -334,8 +527,8 @@ module Miyako
       @now_page = nil
       @first_page = nil
       
-      raise MiyakoError, "Aagument count is not same block parameter count!" if proc && proc.arity.abs != params.length
-      instance_exec(*params, &proc) if block_given?
+      raise MiyakoProcError, "Aagument count is not same block parameter count!" if proc && proc.arity.abs != params.length
+      instance_exec(*params, &proc) if proc
       
       return self
     end
@@ -359,15 +552,15 @@ module Miyako
     #
     #3)select_plotメソッドで登録したブロック(Procクラスのインスタンス)
     #
-    #_plot_proc_:: プロットの実行部をインスタンス化したオブジェクト
-    #_with_update_input_:: Yuki#updateメソッドを呼び出した時、同時にYuki#update_plot_inputメソッドを呼び出すかどうかを示すフラグ。デフォルトはfalse
+    #_plot_proc_:: プロットの実行部をインスタンス化したオブジェクト。省略時はnil(paramsを指定するときは必ず設定すること)
+    #_params_:: プロットに引き渡す引数リスト
     #返却値:: 自分自身を返す
-    def start_plot(plot_proc = nil, with_update_input = true, &plot_block)
-      raise MiyakoError, "Yuki Error! Textbox is not selected!" unless @text_box
-      raise MiyakoError, "Yuki Error! Plot must not have any parameters!" if plot_proc && plot_proc.arity != 0
-      raise MiyakoError, "Yuki Error! Plot must not have any parameters!" if plot_block && plot_block.arity != 0
-      @with_update_input = with_update_input
-      @executing_fiber = Fiber.new{ plot_facade(plot_proc, &plot_block) }
+    def start_plot(plot_proc = nil, *params, &plot_block)
+      raise MiyakoValueError, "Yuki Error! Textbox is not selected!" unless @text_box
+      raise MiyakoProcError, "Aagument count is not same block parameter count!" if plot_proc && plot_proc.arity.abs != params.length
+      raise MiyakoProcError, "Aagument count is not same block parameter count!" if plot_block && plot_block.arity.abs != params.length
+      raise MiyakoProcError, "Aagument count is not same block parameter count!" if @exec_plot && @exec_plot.arity.abs != params.length
+      @executing_fiber = Fiber.new{ plot_facade(plot_proc, *params, &plot_block) }
       @executing_fiber.resume
       return self
     end
@@ -377,7 +570,8 @@ module Miyako
     #プロット処理の実行確認は出来ない
     def update
       return unless @executing
-      update_plot_input if @with_update_input
+      return @over_yuki.update if @over_yuki && @over_yuki.executing? && !@over_exec
+      update_plot_input
       pausing if @pausing
       selecting if @selecting
       waiting   if @waiting
@@ -403,6 +597,7 @@ module Miyako
     #プロット処理の場合は、メインスレッドから明示的に呼び出す必要がある
     #返却値:: nil を返す
     def update_plot_input
+      return nil if @over_yuki && @over_yuki.executing?
       return nil unless @executing
       if @pausing && @release_checks.inject(false){|r, c| r |= c.call }
         @pause_release = true
@@ -415,14 +610,14 @@ module Miyako
       return nil
     end
 
-    def plot_facade(plot_proc = nil, &plot_block) #:nodoc:
+    def plot_facade(plot_proc = nil, *params, &plot_block) #:nodoc:
       @plot_result = nil
       @executing = true
       exec_plot = @exec_plot
-      @plot_result = plot_proc ? self.instance_exec(&plot_proc) :
-                     block_given? ? self.instance_exec(&plot_block) :
-                     exec_plot ? self.instance_exec(&exec_plot) :
-                     raise(MiyakoError, "Cannot find plot!")
+      @plot_result = plot_proc ? self.instance_exec(*params, &plot_proc) :
+                     block_given? ? self.instance_exec(*params, &plot_block) :
+                     exec_plot ? self.instance_exec(*params, &exec_plot) :
+                     raise(MiyakoProcError, "Cannot find plot!")
       @executing = false
     end
 
@@ -502,7 +697,7 @@ module Miyako
     #post_proc:: ポーズ解除時に実行させるProc(デフォルトは[](何もしない))
     #返却値:: 自分自身を返す
     def release_checks_during(procs, pre_procs = [], post_procs = [])
-      raise MiyakoError, "Can't find block!" unless block_given?
+      raise MiyakoProcError, "Can't find block!" unless block_given?
       backup = [@release_checks, @pre_pause, @post_pause]
       @release_checks, @pre_pause, @post_pause = procs, pre_proc, post_proc
       yield
@@ -518,7 +713,7 @@ module Miyako
     #post_proc:: コマンド選択決定時に実行させるProc(デフォルトは[](何もしない))
     #返却値:: 自分自身を返す
     def ok_checks_during(procs, pre_procs = [], post_procs = [])
-      raise MiyakoError, "Can't find block!" unless block_given?
+      raise MiyakoProcError, "Can't find block!" unless block_given?
       backup = [@ok_checks, @pre_command, @post_command]
       @ok_checks, @pre_command, @post_command = procs, pre_proc, post_proc
       yield
@@ -534,7 +729,7 @@ module Miyako
     #post_proc:: コマンド選択キャンセル時に実行させるProc(デフォルトは[](何もしない))
     #返却値:: 自分自身を返す
     def cancel_checks_during(procs, pre_procs = [], post_procs = [])
-      raise MiyakoError, "Can't find block!" unless block_given?
+      raise MiyakoProcError, "Can't find block!" unless block_given?
       backup = [@cancel_checks, @pre_cancel, @post_cancel]
       @cancel_checks, @pre_cancel, @post_cancel = procs, pre_proc, post_proc
       yield
@@ -543,6 +738,7 @@ module Miyako
     end
 
     #===プロットの処理結果を返す
+    #[[Yukiスクリプトとして利用可能]]
     #プロット処理の結果を返す。
     #まだ結果が得られていない場合はnilを得る
     #プロット処理が終了していないのに結果を得られるので注意！
@@ -552,6 +748,7 @@ module Miyako
     end
   
     #===プロット処理の結果を設定する
+    #[[Yukiスクリプトとして利用可能]]
     #_ret_:: 設定する結果。デフォルトはnil
     #返却値:: 自分自身を返す
     def result=(ret = nil)
@@ -560,6 +757,7 @@ module Miyako
     end
 
     #===結果がシーンかどうかを問い合わせる
+    #[[Yukiスクリプトとして利用可能]]
     #結果がシーン（シーンクラス名）のときはtrueを返す
     #対象の結果は、選択結果、プロット処理結果ともに有効
     #返却値:: 結果がシーンかどうか（true/false）
@@ -568,6 +766,7 @@ module Miyako
     end
 
     #===結果がシナリオかどうかを問い合わせる
+    #[[Yukiスクリプトとして利用可能]]
     #結果がシナリオ（メソッド）のときはtrueを返す
     #対象の結果は、選択結果、プロット処理結果ともに有効
     #返却値:: 結果がシナリオかどうか（true/false）
@@ -576,12 +775,14 @@ module Miyako
     end
 
     #===コマンド選択がキャンセルされたときの結果を返す
+    #[[Yukiスクリプトとして利用可能]]
     #返却値:: キャンセルされたときはtrue、されていないときはfalseを返す
     def canceled?
       return result == @cancel
     end
       
     #===ブロックを条件として設定する
+    #[[Yukiスクリプトとして利用可能]]
     #メソッドをMethodクラスのインスタンスに変換する
     #_block_:: シナリオインスタンスに変換したいメソッド名(シンボル)
     #返却値:: シナリオインスタンスに変換したメソッド
@@ -590,24 +791,28 @@ module Miyako
     end
     
     #===コマンド選択中の問い合わせメソッド
+    #[[Yukiスクリプトとして利用可能]]
     #返却値:: コマンド選択中の時はtrueを返す
     def selecting?
       return @selecting
     end
     
     #===Yuki#waitメソッドによる処理待ちの問い合わせメソッド
+    #[[Yukiスクリプトとして利用可能]]
     #返却値:: 処理待ちの時はtrueを返す
     def waiting?
       return @waiting
     end
     
     #===メッセージ送り待ちの問い合わせメソッド
+    #[[Yukiスクリプトとして利用可能]]
     #返却値:: メッセージ送り待ちの時はtrueを返す
     def pausing?
       return @pausing
     end
   
     #===条件に合っていればポーズをかける
+    #[[Yukiスクリプトとして利用可能]]
     #引数で設定した条件（Proc,メソッドインスタンス,ブロック）を評価した結果、trueのときはポーズを行い、
     #condの値がnilで、ブロックが渡されていないときは何もしない
     #falseのときは改行してプロットの処理を継続する
@@ -626,7 +831,7 @@ module Miyako
     #_mode_:: テキストの表示方法。:charのときは文字ごと、:stringのときは文字列ごとに表示される。それ以外を指定したときは例外が発生
     #返却値:: 自分自身を返す
     def text_method(mode)
-      raise MiyakoError, "undefined text_mode! #{mode}" unless [:char,:string].include?(mode)
+      raise MiyakoValueError, "undefined text_mode! #{mode}" unless [:char,:string].include?(mode)
       backup = @text_method_name
       @text_method_name = mode
       if block_given?
@@ -637,6 +842,7 @@ module Miyako
     end
   
     #===テキストボックスに文字を表示する
+    #[[Yukiスクリプトとして利用可能]]
     #テキストボックスとして用意している画像に文字を描画する。
     #描画する単位(文字単位、文字列単位)によって、挙動が違う。
     #(文字単位の時)
@@ -655,6 +861,7 @@ module Miyako
     end
   
     #===テキストボックスに文字を1文字ずつ表示する
+    #[[Yukiスクリプトとして利用可能]]
     #引数txtの値は、内部で１文字ずつ分割され、１文字描画されるごとに、
     #update_textメソッドが呼び出され、続けてYuki#start_plotもしくはYuki#updateメソッド呼び出し直後に戻る
     #注意として、改行が文字列中にあれば改行、タブやフィードが文字列中にあれば、nilを返す。
@@ -678,6 +885,7 @@ module Miyako
     end
   
     #===テキストボックスに文字を表示する
+    #[[Yukiスクリプトとして利用可能]]
     #文字列が描画されるごとに、update_textメソッドが呼び出され、
     #続けてYuki#start_plotもしくはYuki#updateメソッド呼び出し直後に戻る
     #注意として、改行が文字列中にあれば改行、タブやフィードが文字列中にあれば、nilを返す。
@@ -717,6 +925,7 @@ module Miyako
     private :is_outer_height
     
     #===文字色を変更する
+    #[[Yukiスクリプトとして利用可能]]
     #ブロック内で指定した文字列を、指定の色で描画する
     #_color_:: 文字色
     #返却値:: 自分自身を返す
@@ -726,13 +935,14 @@ module Miyako
     end
 
     #===ブロック評価中、行中の表示位置を変更する
+    #[[Yukiスクリプトとして利用可能]]
     #ブロックを評価している間だけ、デフォルトの縦の表示位置を変更する
     #変更できる値は、:top、:middle、:bottomの3種類。
     #ブロックを渡していないときはエラーを返す
     #_valign_:: 文字の縦の位置(top, middle, bottom)
     #返却値:: 自分自身を返す
     def valign_during(valign)
-      raise MiyakoError, "Can't find block!" unless block_given?
+      raise MiyakoProcError, "Can't find block!" unless block_given?
       oalign, @valign = @valign, valign
       yield
       @valign = oalign
@@ -740,6 +950,7 @@ module Miyako
     end
 
     #===文字の大きさを変更する
+    #[[Yukiスクリプトとして利用可能]]
     #ブロック内で指定した文字列を、指定の大きさで描画する
     #_size_:: 文字の大きさ（整数）
     #_valign_:: 文字の縦の位置(top, middle, bottom)。デフォルトは:middle(Yuki#valign=,Yuki#valign_duringで変更可能)
@@ -752,6 +963,7 @@ module Miyako
     end
   
     #===太文字を描画する
+    #[[Yukiスクリプトとして利用可能]]
     #ブロック内で指定した文字列を太文字で表示する
     #(使用すると文字の端が切れてしまう場合あり！)
     #返却値:: 自分自身を返す
@@ -761,6 +973,7 @@ module Miyako
     end
   
     #===斜体文字を描画する
+    #[[Yukiスクリプトとして利用可能]]
     #ブロック内で指定した文字列を斜体で表示する
     #(使用すると文字の端が切れてしまう場合あり！)
     #返却値:: 自分自身を返す
@@ -770,6 +983,7 @@ module Miyako
     end
   
     #===下線付き文字を描画する
+    #[[Yukiスクリプトとして利用可能]]
     #ブロック内で指定した文字列を下線付きで表示する
     #返却値:: 自分自身を返す
     def under_line(&block)
@@ -778,6 +992,7 @@ module Miyako
     end
 
     #===改行を行う
+    #[[Yukiスクリプトとして利用可能]]
     #開業後にupdate_crテンプレートメソッドが１回呼ばれる
     #_tm_:: 改行回数。デフォルトは1
     #返却値:: 自分自身を返す
@@ -790,6 +1005,7 @@ module Miyako
     end
 
     #===テキストボックスの内容を消去する
+    #[[Yukiスクリプトとして利用可能]]
     #開業後にupdate_clearテンプレートメソッドが１回呼ばれる
     #返却値:: 自分自身を返す
     def clear 
@@ -799,6 +1015,7 @@ module Miyako
     end
 
     #===ポーズを行う
+    #[[Yukiスクリプトとして利用可能]]
     #ポーズが行われると、ポーズ用のカーソルが表示される
     #所定のボタンを押すとポーズが解除され、カーソルが消える
     #解除後は、プロットの続きを処理する
@@ -828,6 +1045,7 @@ module Miyako
     end
   
     #===ポーズをかけて、テキストボックスの内容を消去する
+    #[[Yukiスクリプトとして利用可能]]
     #ポーズをかけ、ポーズを解除するときにテキストボックスの内容を消去する
     #返却値:: 自分自身を返す
     def pause_and_clear
@@ -835,6 +1053,7 @@ module Miyako
     end
 
     #===コマンドを表示する
+    #[[Yukiスクリプトとして利用可能]]
     #表示対象のコマンド群をCommand構造体の配列で示す。
     #キャンセルのときの結果も指定可能（既定ではキャンセル不可状態）
     #body_selectedをnilにした場合は、bodyと同一となる
@@ -847,7 +1066,7 @@ module Miyako
     #_chain_block_:: コマンドの表示方法。TextBox#create_choices_chainメソッド参照
     #返却値:: 自分自身を返す
     def command(command_list, cancel_to = Canceled, &chain_block)
-      raise MiyakoError, "Yuki Error! Commandbox is not selected!" unless @command_box
+      raise MiyakoValueError, "Yuki Error! Commandbox is not selected!" unless @command_box
       @cancel = cancel_to
 
       choices = []
@@ -910,6 +1129,7 @@ module Miyako
     end
 
     #===コマンドの選択結果を返す
+    #[[Yukiスクリプトとして利用可能]]
     #コマンド選択の結果を返す。
     #まだ結果が得られていない場合はnilを得る
     #プロット処理・コマンド選択が終了していないのに結果を得られるので注意！
@@ -919,6 +1139,7 @@ module Miyako
     end
 
     #===プロットの処理を待機する
+    #[[Yukiスクリプトとして利用可能]]
     #指定の秒数（少数可）、プロットの処理を待機する。
     #待機中、update_innerメソッドを呼び出し、続けて、処理をYuki#startもしくはYuki#update呼び出し直後に戻す
     #Yuki#updateが呼び出されても待機中の場合は、再び上記の処理を繰り返す
@@ -941,6 +1162,7 @@ module Miyako
     end
 
     #===シナリオ上の括り(ページ)を実装する
+    #[[Yukiスクリプトとして利用可能]]
     #シナリオ上、「このプロットの明示的な範囲」を示すために使用する(セーブ時の再現位置の指定など)
     #Yuki#select_first_pageメソッドで開始位置が指定されている場合、以下の処理を行う。
     #(1)select_first_pageメソッドで指定されたページから処理する。それまでのページは無視される
@@ -950,7 +1172,7 @@ module Miyako
     #_use_pause_::ページの処理が終了した後、必ずpauseメソッドを呼び出すかどうかのフラグ。デフォルトはtrue
     #返却値:: select_first_pageメソッドで指定されていないページのときはnil、指定されているページの場合は引数nameの値
     def page(name, use_pause = true)
-      raise MiyakoError, "Yuki#page needs block!" unless block_given?
+      raise MiyakoProcError, "Yuki#page needs block!" unless block_given?
       return nil if (@first_page && name != @first_page)
       @first_page = nil
       @now_page = name
@@ -961,6 +1183,7 @@ module Miyako
     end
     
     #===シナリオ上の現在のページを返す
+    #[[Yukiスクリプトとして利用可能]]
     #呼び出し当時、シナリオ上、pageメソッドでくくられていない場合は、nilを返す
     #返却値:: ページ名
     def now_page
@@ -968,6 +1191,7 @@ module Miyako
     end
     
     #===プロット上の最初に実行するページを指定知る
+    #[[Yukiスクリプトとして利用可能]]
     #但し、ページ名を指定しないときはnilを指定する。
     #_name_:: 最初に実行するページ名
     def select_first_page(name)
