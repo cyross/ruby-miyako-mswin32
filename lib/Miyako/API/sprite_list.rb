@@ -25,6 +25,7 @@ module Miyako
   #==名前-本体ペアを構成する構造体用クラス
   class ListPairStruct < Struct
     include SpriteBase
+    include Animation
 
     # ディープコピー
     def deep_dup
@@ -60,7 +61,7 @@ module Miyako
       self
     end
 
-    #===スプライトの移動(位置を指定)
+    #===本体の移動(位置を指定)
     #_x_:: 位置(x方向)。単位はピクセル
     #_y_:: 位置(y方向)。単位はピクセル
     #返却値:: 自分自身を返す
@@ -69,6 +70,37 @@ module Miyako
       self
     end
     
+    #===本体のアニメーションを開始する
+    #各要素のstartメソッドを呼び出す
+    #返却値:: 自分自身を返す
+    def start
+      self[1].start
+      return self
+    end
+    
+    #===本体のアニメーションを停止する
+    #各要素のstopメソッドを呼び出す
+    #返却値:: 自分自身を返す
+    def stop
+      self[1].stop
+      return self
+    end
+    
+    #===本体のアニメーションを先頭パターンに戻す
+    #各要素のresetメソッドを呼び出す
+    #返却値:: 自分自身を返す
+    def reset
+      self[1].reset
+      return self
+    end
+    
+    #===本体のアニメーションを更新する
+    #各要素のupdate_animationメソッドを呼び出す
+    #返却値:: 本体のupdate_spriteメソッドを呼び出した結果
+    def update_animation
+      self[1].update_animation
+    end
+
     #画面に描画する
     def render
       self[1].render
@@ -116,6 +148,8 @@ module Miyako
     #===ハッシュを元にSpriteListを生成する
     #引数を省略すると空のSpriteListを生成する。
     #要素が[スプライト名,スプライト]の配列となる配列を引数として渡すこともできる。
+    #(ただし、要素がスプライトのみのときは、
+    #名前を":s_nnn"(nnn:配列インデックス(3桁))として追加する)
     #ハッシュを引数として渡すと、キーをスプライト名とするSpriteListを生成する。
     #_pairs_:: 生成元のインスタンス
     #返却値:: 生成したインスタンス
@@ -123,9 +157,15 @@ module Miyako
       @names = []
       @n2v   = {}
       if pairs.is_a?(Array)
-        pairs.each{|pair|
-        @names << pair[0]
-        @n2v[pair[0]] = ListPair.new(*pair)
+        pairs.each_with_index{|pair, i|
+        if pair.is_a?(Array)
+          @names << pair[0]
+          @n2v[pair[0]] = ListPair.new(*pair)
+        else
+          name = sprintf("s_%03d", i).to_sym
+          @names << name
+          @n2v[name] = ListPair.new(name, pair)
+        end
       }
       elsif pairs.is_a?(Hash)
         pairs.each{|key, value|
@@ -722,15 +762,17 @@ module Miyako
     #   =>[[pair(:a),pair(:b)],[pair(:a),pair(:c)],[pair(:b),pair(:c)]]
     #   a.combination(3)
     #   =>[[pair(:a),pair(:b),pair(:c)]]
-    #自分自身を配列化(to_ary)し、サイズnの組み合わせをすべて求めて配列にまとめる
+    #自分自身を配列化(to_ary)し、サイズnの組み合わせをすべて求めて配列化したものを
+    #Enumeratorとして返す
     #_n_:: 組み合わせのサイズ
-    #返却値:: すべてのListPairの順列を配列化したもの
+    #返却値:: Enumerator(ただしブロックを渡すと配列)
     def combination(n, &block)
       self.to_a.combination(n, &block)
     end
 
     #===自身での順列を配列として返す
-    #自分自身を配列化(to_ary)し、サイズnの順列をすべて求めて配列にまとめる
+    #自分自身を配列化(to_ary)し、サイズnの順列をすべて求めて配列化したものを
+    #Enumeratorとして返す
     #例:a=SpriteList(pair(:a),pair(:b),pair(:c))
     #   a.permutation(1)
     #   =>[[pair(:a)],[pair(:b)],[pair(:c)]]
@@ -743,7 +785,7 @@ module Miyako
     #      [pair(:b),pair(:a),pair(:c)],[pair(:b),pair(:c),pair(:a)],
     #      [pair(:c),pair(:a),pair(:b)],[pair(:c),pair(:b),pair(:a)]]
     #_n_:: 順列のサイズ
-    #返却値:: すべてのListPairの組み合わせを配列化したもの
+    #返却値:: Enumerator(ただしブロックを渡すと配列)
     def permutation(n, &block)
       self.to_a.permutation(n, &block)
     end
@@ -789,8 +831,9 @@ module Miyako
     
     #===名前と関連付けられたスプライトを取得する
     #関連付けられているスプライトが見つからなければnilが返る
-    #例:SpriteList(pair(:a),pair(:b),pair(:c),pair(:d))[:c]
-    #   => spr(:c)
+    #例:a=SpriteList(pair(:a),pair(:b),pair(:c),pair(:d))
+    #   a[:c] => spr(:c)
+    #   a[:q] => nil
     #_name_:: 名前
     #返却値:: 名前に関連付けられたスプライト
     def [](name)
@@ -1031,7 +1074,7 @@ module Miyako
       return self
     end
     
-    #===描く画像のアニメーションを開始する
+    #===各要素のアニメーションを開始する
     #各要素のstartメソッドを呼び出す
     #返却値:: 自分自身を返す
     def start
@@ -1039,7 +1082,7 @@ module Miyako
       return self
     end
     
-    #===描く画像のアニメーションを停止する
+    #===各要素のアニメーションを停止する
     #各要素のstopメソッドを呼び出す
     #返却値:: 自分自身を返す
     def stop
@@ -1047,7 +1090,7 @@ module Miyako
       return self
     end
     
-    #===描く画像のアニメーションを先頭パターンに戻す
+    #===各要素のアニメーションを先頭パターンに戻す
     #各要素のresetメソッドを呼び出す
     #返却値:: 自分自身を返す
     def reset
@@ -1055,9 +1098,9 @@ module Miyako
       return self
     end
     
-    #===描く画像のアニメーションを更新する
+    #===各要素のアニメーションを更新する
     #各要素のupdate_animationメソッドを呼び出す
-    #返却値:: 描く画像のupdate_spriteメソッドを呼び出した結果を配列で返す
+    #返却値:: 各要素のupdate_spriteメソッドを呼び出した結果を配列で返す
     def update_animation
       self.sprite_only.map{|pair| pair[1].update_animation }
     end
