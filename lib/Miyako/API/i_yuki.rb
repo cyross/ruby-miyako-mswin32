@@ -26,12 +26,52 @@ alias :yuki_plot :lambda
 #=シナリオ言語Yuki実装モジュール
 module Miyako
 
-  #==Yuki本体クラス
+  #==InitiativeYukiクラスに対応したテンプレートモジュール
+  module InitiativeYukiTemplate
+    def render_inner(yuki)
+    end
+
+    def render_to_inner(yuki, dst)
+    end
+
+    def update_animation_inner(yuki)
+    end
+
+    def update_inner(yuki)
+    end
+
+    def text_inner(yuki, ch)
+    end
+
+    def cr_inner(yuki)
+    end
+
+    def clear_inner(yuki)
+    end
+
+    def input_inner(yuki)
+    end
+
+    def pausing_inner(yuki)
+    end
+
+    def selecting_inner(yuki)
+    end
+
+    def waiting_inner(yuki)
+    end
+
+    def plot
+    end
+  end
+
+  #==主導権を持ったYuki本体クラス
   #Yukiの内容をオブジェクト化したクラス
   #Yukiのプロット処理を外部メソッドで管理可能
   #プロットは、引数を一つ（Yuki2クラスのインスタンス）を取ったメソッドもしくはブロック
   #として記述する。
-  class Yuki
+  class InitiativeYuki
+    include InitiativeYukiTemplate
     include SpriteBase
     include Animation
 
@@ -55,37 +95,8 @@ module Miyako
     #ブロックは1つの引数を取る(コマンド選択テキストボックス))。デフォルトはnil
     CommandEX = Struct.new(:body, :body_selected, :condition, :result, :end_select_proc)
 
-    #===Yuki#update実行中に行わせる処理を実装するテンプレートメソッド
-    #但し、メソッド本体は、update_inner=メソッドで設定する必要がある
-    #_yuki_:: 実行中のYukiクラスインスタンス
-    def update_inner(yuki)
-    end
-
-    #===Yuki#text実行中に行わせる処理を実装するテンプレートメソッド
-    #update_textテンプレートメソッドは、textメソッドで渡した文字列全体ではなく、
-    #内部で１文字ずつ分割して、その字が処理されるごとに呼ばれる。
-    #そのため、引数chで入ってくるのは、分割された１文字となる。
-    #但し、メソッド本体は、update_text=メソッドで設定する必要がある
-    #_yuki_:: 実行中のYukiクラスインスタンス
-    #_ch_:: textメソッドで処理中の文字(分割済みの１文字)
-    def update_text(yuki, ch)
-    end
-
-    #===Yuki#cr呼び出し時に行わせる処理を実装するテンプレートメソッド
-    #但し、メソッド本体は、update_cr=メソッドで設定する必要がある
-    #_yuki_:: 実行中のYukiクラスインスタンス
-    def update_cr(yuki)
-    end
-
-    #===Yuki#clear呼び出し時に行わせる処理を実装するテンプレートメソッド
-    #但し、メソッド本体は、update_clear=メソッドで設定する必要がある
-    #_yuki_:: 実行中のYukiクラスインスタンス
-    def update_clear(yuki)
-    end
-
-    attr_accessor :visible
-    attr_accessor :update_inner, :update_text, :update_cr, :update_clear
-    attr_reader :valign, :visibles
+    attr_reader :visibles, :base
+    attr_reader :valign
     #release_checks:: ポーズ解除を問い合わせるブロックの配列。
     #callメソッドを持ち、true/falseを返すインスタンスを配列操作で追加・削除できる。
     #ok_checks:: コマンド選択決定を問い合わせるブロックの配列。
@@ -139,13 +150,10 @@ module Miyako
     #引数の数とブロック引数の数が違っていれば例外が発生する
     #_params_:: ブロックに渡す引数リスト(ただし、ブロックを渡しているときのみに有効)
     def initialize(*params, &proc)
+      @base = nil
       @yuki = { }
-      @over_yuki = nil
-      @over_exec = false
       @text_box = nil
       @command_box = nil
-
-      @executing = false
 
       @exec_plot = nil
 
@@ -162,17 +170,9 @@ module Miyako
       @result = nil
       @plot_result = nil
 
-      @update_inner = lambda{|yuki|}
-      @update_text  = lambda{|yuki, ch|}
-      @update_cr    = lambda{|yuki|}
-      @update_clear = lambda{|yuki|}
-
       @parts = {}
       @visibles = SpriteList.new
       @vars = {}
-      @visible = true
-
-      @executing_fiber = nil
 
       @text_methods = {:char => self.method(:text_by_char),
                       :string => self.method(:text_by_str) }
@@ -215,13 +215,57 @@ module Miyako
       raise MiyakoCopyError.not_copy("Yuki")
     end
 
+    def render_inner(yuki)
+      @base.render_inner(yuki)
+    end
+
+    def render_to_inner(yuki, dst)
+      @base.render_to_inner(yuki, dst)
+    end
+
+    def update_animation_inner(yuki)
+      @base.update_animation_inner(yuki)
+    end
+
+    def update_inner(yuki)
+      @base.update_inner(yuki)
+    end
+
+    def text_inner(yuki, ch)
+      @base.text_inner(yuki, ch)
+    end
+
+    def cr_inner(yuki)
+      @base.cr_inner(yuki)
+    end
+
+    def clear_inner(yuki)
+      @base.clear_inner(yuki)
+    end
+
+    def input_inner(yuki)
+      @base.input_inner(yuki)
+    end
+
+    def pausing_inner(yuki)
+      @base.pausing_inner(yuki)
+    end
+
+    def selecting_inner(yuki)
+      @base.selecting_inner(yuki)
+    end
+
+    def waiting_inner(yuki)
+      @base.waiting_inner(yuki)
+    end
+
     #===Yuki#showで表示指定した画像を描画する
     #描画順は、showメソッドで指定した順に描画される(先に指定した画像は後ろに表示される)
     #なお、visibleの値がfalseの時は描画されない。
     #返却値:: 自分自身を返す
     def render
-      @visibles.render if @visible
-      @over_yuki.render if @over_yuki && @over_yuki.executing?
+      @visibles.render
+      render_inner(self)
       return self
     end
 
@@ -230,16 +274,28 @@ module Miyako
     #なお、visibleの値がfalseの時は描画されない。
     #返却値:: 自分自身を返す
     def render_to(dst)
-      @visibles.render_to(dst) if @visible
-      @over_yuki.render_to(dst) if @over_yuki && @over_yuki.executing?
+      @visibles.render
+      render_to_inner(self, dst)
       return self
+    end
+
+    #===プロット処理を更新する
+    #ポーズ中、コマンド選択中、 Yuki#wait メソッドによるウェイトの状態確認を行う。
+    #プロット処理の実行確認は出来ない
+    def update
+      update_inner(self)
+      @pause_release = false
+      @select_ok = false
+      @select_cancel = false
+      @select_amount = [0, 0]
+      return nil
     end
 
     #===Yuki#showで表示指定した画像のアニメーションを更新する
     #showメソッドで指定した画像のupdate_animationメソッドを呼び出す
     #返却値:: 描く画像のupdate_spriteメソッドを呼び出した結果を配列で返す
     def update_animation
-      @over_yuki.update_animation if @over_yuki && @over_yuki.executing?
+      update_animation_inner(self)
       @visibles.update_animation
     end
 
@@ -408,6 +464,7 @@ module Miyako
     #返却値:: 自分自身を返す
     def start(name)
       @parts[name].start
+      post_process
       return self
     end
 
@@ -419,6 +476,7 @@ module Miyako
     #返却値:: 自分自身を返す
     def play(name)
       @parts[name].play
+      post_process
       return self
     end
 
@@ -430,6 +488,7 @@ module Miyako
     #返却値:: 自分自身を返す
     def stop(name)
       @parts[name].stop
+      post_process
       return self
     end
 
@@ -440,9 +499,30 @@ module Miyako
     #返却値:: 自分自身を返す
     def wait_by_finish(name)
       until @parts[name].finish?
+        pre_process
         @update_inner.call(self)
+        post_process
       end
       return self
+    end
+
+    def process(is_clear = true)
+      pre_process(is_clear)
+      post_process
+    end
+
+    def pre_process(is_clear = true)
+      Audio.update
+      Input.update
+      self.update_input
+      self.update
+      self.update_animation
+      Screen.clear if is_clear
+    end
+
+    def post_process
+      self.render
+      Screen.render
     end
 
     #===別のYukiエンジンを実行する
@@ -458,21 +538,7 @@ module Miyako
     def over_exec(yuki, plot, *params)
       raise MiyakoValueError, "This Yuki engine is same as self!" if yuki.eql?(self)
       @over_yuki = yuki
-      @over_yuki.start_plot(plot, *params)
-      return self
-    end
-
-    #===別のYukiエンジンの実行が終わるまで待つ
-    #[[Yukiスクリプトとして利用可能]]
-    #over_execを呼び出した時、処理がすぐに次の行へ移るため、
-    #over_execの処理が終了するのを待たせるためのメソッド
-    #返却値:: 自分自身を返す
-    def wait_over_exec
-      @over_exec = true
-      while @over_yuki && @over_yuki.executing?
-        @over_yuki.update
-        Fiber.yield
-      end
+      @over_yuki.start_plot(self, plot, *params)
       return self
     end
 
@@ -484,12 +550,6 @@ module Miyako
     #返却値:: 自分自身を返す
     def setup(*params, &proc)
       @exec_plot = nil
-
-      @executing = false
-
-      @pausing = false
-      @selecting = false
-      @waiting = false
 
       @pause_release = false
       @select_ok = false
@@ -528,34 +588,18 @@ module Miyako
     #
     #3)select_plotメソッドで登録したブロック(Procクラスのインスタンス)
     #
+    #_base_:: プロットの実行部をインスタンス化したオブジェクト。省略時はnil(paramsを指定するときは必ず設定すること)
     #_plot_proc_:: プロットの実行部をインスタンス化したオブジェクト。省略時はnil(paramsを指定するときは必ず設定すること)
     #_params_:: プロットに引き渡す引数リスト
     #返却値:: 自分自身を返す
-    def start_plot(plot_proc = nil, *params, &plot_block)
+    def start_plot(base, plot_proc = nil, *params, &plot_block)
       raise MiyakoValueError, "Yuki Error! Textbox is not selected!" unless @text_box
       raise MiyakoProcError, "Aagument count is not same block parameter count!" if plot_proc && plot_proc.arity.abs != params.length
       raise MiyakoProcError, "Aagument count is not same block parameter count!" if plot_block && plot_block.arity.abs != params.length
       raise MiyakoProcError, "Aagument count is not same block parameter count!" if @exec_plot && @exec_plot.arity.abs != params.length
-      @executing_fiber = Fiber.new{ plot_facade(plot_proc, *params, &plot_block) }
-      @executing_fiber.resume
+      @base = base
+      plot_facade(plot_proc, *params, &plot_block)
       return self
-    end
-
-    #===プロット処理を更新する
-    #ポーズ中、コマンド選択中、 Yuki#wait メソッドによるウェイトの状態確認を行う。
-    #プロット処理の実行確認は出来ない
-    def update
-      return unless @executing
-      return @over_yuki.update if @over_yuki && @over_yuki.executing? && !@over_exec
-      update_plot_input
-      pausing if @pausing
-      selecting if @selecting
-      waiting   if @waiting
-      @pause_release = false
-      @select_ok = false
-      @select_cancel = false
-      @select_amount = [0, 0]
-      @executing_fiber.resume
     end
 
     #===プロット用ブロックをYukiへ渡すためのインスタンスを作成する
@@ -572,29 +616,18 @@ module Miyako
     #Yuki#update メソッドをそのまま使う場合は呼び出す必要がないが、 Yuki#exec_plot メソッドを呼び出す
     #プロット処理の場合は、メインスレッドから明示的に呼び出す必要がある
     #返却値:: nil を返す
-    def update_plot_input
-      return nil if @over_yuki && @over_yuki.executing?
-      return nil unless @executing
-      if @pausing && @release_checks.inject(false){|r, c| r |= c.call }
-        @pause_release = true
-      elsif @selecting
-        @select_ok = true if @ok_checks.inject(false){|r, c| r |= c.call }
-        @select_cancel = true if @cancel_checks.inject(false){|r, c| r |= c.call }
-        @select_amount = @key_amount_proc.call
-        @mouse_amount = @mouse_amount_proc.call
-      end
+    def update_input
+      input_inner(self)
       return nil
     end
 
     def plot_facade(plot_proc = nil, *params, &plot_block) #:nodoc:
       @plot_result = nil
-      @executing = true
       exec_plot = @exec_plot
       @plot_result = plot_proc ? self.instance_exec(*params, &plot_proc) :
                      block_given? ? self.instance_exec(*params, &plot_block) :
                      exec_plot ? self.instance_exec(*params, &exec_plot) :
                      raise(MiyakoProcError, "Cannot find plot!")
-      @executing = false
     end
 
     #===プロット処理中に別のプロットを呼び出す
@@ -609,12 +642,6 @@ module Miyako
     def call_plot(plot_proc = nil, &plot_block)
       return plot_proc ? self.instance_exec(&plot_proc) :
                          self.instance_exec(&plot_block)
-    end
-
-    #===プロット処理が実行中かどうかを確認する
-    #返却値:: プロット処理実行中の時はtrueを返す
-    def executing?
-      return @executing
     end
 
     #===ポーズ解除問い合わせメソッド配列を初期状態に戻す
@@ -766,27 +793,6 @@ module Miyako
       return block
     end
 
-    #===コマンド選択中の問い合わせメソッド
-    #[[Yukiスクリプトとして利用可能]]
-    #返却値:: コマンド選択中の時はtrueを返す
-    def selecting?
-      return @selecting
-    end
-
-    #===Yuki#waitメソッドによる処理待ちの問い合わせメソッド
-    #[[Yukiスクリプトとして利用可能]]
-    #返却値:: 処理待ちの時はtrueを返す
-    def waiting?
-      return @waiting
-    end
-
-    #===メッセージ送り待ちの問い合わせメソッド
-    #[[Yukiスクリプトとして利用可能]]
-    #返却値:: メッセージ送り待ちの時はtrueを返す
-    def pausing?
-      return @pausing
-    end
-
     #===条件に合っていればポーズをかける
     #[[Yukiスクリプトとして利用可能]]
     #引数で設定した条件（Proc,メソッドインスタンス,ブロック）を評価した結果、trueのときはポーズを行い、
@@ -846,6 +852,7 @@ module Miyako
     def text_by_char(txt)
       return self if txt.eql?(self)
       txt.chars{|ch|
+        pre_process
         if /[\n\r]/.match(ch)
           next wait_by_cond(@is_outer_height)
         elsif @text_box.locate.x + @text_box.font.text_size(ch)[0] >= @text_box.textarea.w
@@ -854,8 +861,8 @@ module Miyako
           next nil
         end
         @text_box.draw_text(ch)
-        @update_text.call(self, ch)
-        Fiber.yield
+        text_inner(self, ch)
+        post_process
       }
       return self
     end
@@ -871,6 +878,7 @@ module Miyako
       return self if txt.eql?(self)
       use_cr = false
       until txt.empty? do
+        pre_process
         if /[\n\r]/.match(txt)
           tmp = Regexp.last_match.pre_match
           txt = Regexp.last_match.post_match
@@ -880,6 +888,7 @@ module Miyako
           tmp = txt.slice!(0,w)
           use_cr = true
         elsif /[\t\f]/.match(txt)
+          post_process
           next nil
         else
           tmp = txt
@@ -887,9 +896,9 @@ module Miyako
         end
         @text_box.draw_text(tmp)
         self.cr if use_cr
-        @update_text.call(self, tmp)
-        Fiber.yield
+        text_inner(self, tmp)
         use_cr = false
+        post_process
       end
       return self
     end
@@ -975,7 +984,7 @@ module Miyako
     def cr(tm = 1)
       tm.times{|n|
         @text_box.cr
-        @update_cr.call(self)
+        cr_inner(self)
       }
       return self
     end
@@ -986,7 +995,7 @@ module Miyako
     #返却値:: 自分自身を返す
     def clear
       @text_box.clear
-      @update_clear.call(self)
+      clear_inner(self)
       return self
     end
 
@@ -1004,20 +1013,15 @@ module Miyako
       @pre_pause.each{|proc| proc.call}
       yield if block_given?
       @text_box.pause
-      @pausing = true
-      while @pausing
-        @update_inner.call(self)
-        Fiber.yield
+      pause_release = false
+      until pause_release
+        pre_process
+        pausing_inner(self)
+        pause_release = @release_checks.inject(false){|r, c| r |= c.call }
+        post_process
       end
       @post_pause.each{|proc| proc.call}
       return self
-    end
-
-    def pausing #:nodoc:
-      return unless @pause_release
-      @text_box.release
-      @pausing = false
-      @pause_release = false
     end
 
     #===ポーズをかけて、テキストボックスの内容を消去する
@@ -1061,41 +1065,42 @@ module Miyako
       yield if block_given?
       @command_box.command(@command_box.create_choices_chain(choices, &chain_block))
       @result = nil
-      @selecting = true
-      while @selecting
-        @update_inner.call(self)
-        Fiber.yield
+      selecting = true
+      reset_selecting
+      while selecting
+        pre_process
+        selecting_inner(self)
+        @select_ok = true if @ok_checks.inject(false){|r, c| r |= c.call }
+        @select_cancel = true if @cancel_checks.inject(false){|r, c| r |= c.call }
+        @select_amount = @key_amount_proc.call
+        @mouse_amount = @mouse_amount_proc.call
+        @selecting_procs.each{|sp|
+          sp.call(@select_ok, @select_cansel, @select_amount, @mouse_amount)
+        }
+        if @select_ok
+          @result = @command_box.result
+          @command_box.finish_command
+          @text_box.release
+          selecting = false
+          reset_selecting
+        elsif @select_cancel
+          @result = @cancel
+          @command_box.finish_command
+          @text_box.release
+          selecting = false
+          reset_selecting
+        elsif @select_amount != [0,0]
+          @command_box.move_cursor(*@select_amount)
+          reset_selecting
+        elsif @mouse_amount
+          @command_box.attach_cursor(*@mouse_amount.to_a)
+          reset_selecting
+        end
+        post_process
       end
       @post_cancel.each{|proc| proc.call}
       @post_command.each{|proc| proc.call}
       return self
-    end
-
-    def selecting #:nodoc:
-      return unless @selecting
-      return unless @command_box.selecting?
-      @selecting_procs.each{|sp|
-        sp.call(@select_ok, @select_cansel, @select_amount, @mouse_amount)
-      }
-      if @select_ok
-        @result = @command_box.result
-        @command_box.finish_command
-        @text_box.release
-        @selecting = false
-        reset_selecting
-      elsif @select_cancel
-        @result = @cancel
-        @command_box.finish_command
-        @text_box.release
-        @selecting = false
-        reset_selecting
-      elsif @select_amount != [0,0]
-        @command_box.move_cursor(*@select_amount)
-        reset_selecting
-      elsif @mouse_amount
-        @command_box.attach_cursor(*@mouse_amount.to_a)
-        reset_selecting
-      end
     end
 
     def reset_selecting #:nodoc:
@@ -1124,17 +1129,14 @@ module Miyako
     def wait(length)
       @waiting_timer = WaitCounter.new(length)
       @waiting_timer.start
-      @waiting = true
-      while @waiting
-        @update_inner.call(self)
-        Fiber.yield
+      waiting = true
+      while waiting
+        pre_process
+        waiting_inner(self)
+        waiting = @waiting_timer.waiting?
+        post_process
       end
       return self
-    end
-
-    def waiting #:nodoc:
-      return if @waiting_timer.waiting?
-      @waiting = false
     end
 
     #===シナリオ上の括り(ページ)を実装する
@@ -1176,13 +1178,6 @@ module Miyako
 
     #===インスタンスで使用しているオブジェクトを解放する
     def dispose
-      @update_inner  = nil
-      @update_text   = nil
-      @update_cr     = nil
-      @update_clear  = nil
-
-      @executing_fiber = nil
-
       @parts.clear
       @parts = nil
       @visibles.clear

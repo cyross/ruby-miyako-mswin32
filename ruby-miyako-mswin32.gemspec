@@ -29,6 +29,7 @@ Gem::Specification.new do |s|
 "./lib/Miyako/API/exceptions.rb",
 "./lib/Miyako/API/fixedmap.rb",
 "./lib/Miyako/API/font.rb",
+"./lib/Miyako/API/i_yuki.rb",
 "./lib/Miyako/API/input.rb",
 "./lib/Miyako/API/layout.rb",
 "./lib/Miyako/API/map_struct.rb",
