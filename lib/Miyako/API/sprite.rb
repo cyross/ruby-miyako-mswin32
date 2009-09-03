@@ -287,6 +287,150 @@ module Miyako
       return Rect.new(self.ox,self.oy,self.ow,self.oh)
     end
 
+    def adjust_part!
+      if self.ox < 0
+        self.ow += self.ox
+        self.ox = 0
+      end
+      if self.oy < 0
+        self.oh += self.oy
+        self.oy = 0
+      end
+      self.ow = 1 if self.ow <= 0
+      self.oh = 1 if self.oh <= 0
+      if self.ox + self.ow > self.w
+        self.ow = self.w - self.ox
+        if self.ow == 0
+          self.ox -= 1
+          self.ow = 1
+        end
+      end
+      if self.oy + self.oh > self.h
+        self.oh = self.h - self.oy
+        if self.oh == 0
+          self.oy -= 1
+          self.oh = 1
+        end
+      end
+    end
+
+    private :adjust_part!
+
+    #=== 範囲を画像の大きさに合わせながら、部分描画開始位置を移動させる
+    #
+    #返却値:: 自分自身
+    def part_move!(dx, dy)
+      self.ox += dx if dx
+      self.oy += dy if dy
+      adjust_part!
+      return self
+    end
+
+    #=== 範囲を画像の大きさに合わせながら、部分描画開始位置を移動させる
+    #返却値:: 自分自身
+    def part_move_to!(x, y)
+      self.ox = x if x
+      self.oy = y if y
+      adjust_part!
+      return self
+    end
+
+    #=== 範囲を画像の大きさに合わせながら、部分描画の大きさを変える
+    #返却値:: 自分自身
+    def part_resize!(dw, dh)
+      self.ow += dw if dw
+      self.oh += dh if dh
+      adjust_part!
+      return self
+    end
+
+    #=== 範囲を画像の大きさに合わせながら、部分描画の大きさを変える
+    #返却値:: 自分自身
+    def part_resize_to!(w, h)
+      self.ow = w if w
+      self.oh = h if h
+      adjust_part!
+      return self
+    end
+
+    def adjust_part(ox, oy, ow, oh)
+      if ox < 0
+        ow += ox
+        ox = 0
+      end
+      if oy < 0
+        oh += oy
+        oy = 0
+      end
+      ow = 1 if ow <= 0
+      oh = 1 if oh <= 0
+      if ox + ow > w
+        ow = w - ox
+        if ow == 0
+          ox -= 1
+          ow = 1
+        end
+      end
+      if oy + oh > h
+        oh = h - oy
+        if oh == 0
+          oy -= 1
+          oh = 1
+        end
+      end
+      Rect.new(ox,oy,ow,oh)
+    end
+
+    private :adjust_part
+
+    #=== 範囲を画像の大きさに合わせながら、部分描画開始位置を移動させる
+    #ただし、移動した後の矩形を得られるだけで、内部を変更しない
+    #返却値:: 変更後の部分描画矩形(Rect構造体)
+    def part_move(dx, dy)
+      return adjust_part(
+               dx ? self.ox+dx : self.ox,
+               dy ? self.oy+dy : self.oy,
+               self.ow,
+               self.oh
+             )
+    end
+
+    #=== 範囲を画像の大きさに合わせながら、部分描画開始位置を移動させる
+    #ただし、移動した後の矩形を得られるだけで、内部を変更しない
+    #返却値:: 変更後の部分描画矩形(Rect構造体)
+    def part_move_to(x, y)
+      return adjust_part(
+               x ? x : self.ox,
+               y ? y : self.oy,
+               self.ow,
+               self.oh
+             )
+    end
+
+    #=== 範囲を画像の大きさに合わせながら、部分描画の大きさを変える
+    #ただし、移動した後の矩形を得られるだけで、内部を変更しない
+    #返却値:: 変更後の部分描画矩形(Rect構造体)
+    def part_resize(dw, dh)
+      return adjust_part(
+               self.ox,
+               self.oy,
+               dw ? self.ow+dw : self.ow,
+               dh ? self.oh+dh : self.oh
+             )
+    end
+
+    #=== 範囲を画像の大きさに合わせながら、部分描画の大きさを変える
+    #ただし、移動した後の矩形を得られるだけで、内部を変更しない
+    #返却値:: 変更後の部分描画矩形(Rect構造体)
+    def part_resize_to(w, h)
+      return adjust_part(
+               self.ox,
+               self.oy,
+               w ? w : self.ow,
+               h ? h : self.oh
+             )
+    end
+
     #=== スプライトの元画像の大きさを返す
     #返却値:: Size構造体インスタンス
     def image_size
