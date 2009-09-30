@@ -939,6 +939,7 @@ v2.1.0(2009.7.9)
 ・FixedMapクラスでpos,sizeメソッドの値がレイアウトの位置になっていなかった問題を修正
 ・MapEventモジュールのmove,move_toメソッドで存在しない構造体を生成していた問題を修正
 ・Color.[]で、勝手に透明度部分が書き換わる問題を修正
+・Choices#broad_rectで、大きさを正しく取得できない問題を修正
 <仕様変更>
 ・"require 'miyako'"でもロード可能
 ・miyako.rbで組み込んでいるライブラリの順番を変更
@@ -1024,6 +1025,7 @@ v2.1.0(2009.7.9)
 ・WaitCounter#remind(->remainにalias)の返却値の仕様を変更(未スタート:制限時間->制限時間+1、制限時間オーバー:0->-1)
 ・WaitCounter.updateを追加。簡易的なコールバック処理が可能に
 ・選択肢の状態に「選択不可時」を追加(Choice構造体にenable, body_disableを追加)
+・Choiceクラスをスプライト扱いに変更(SpriteBase,Animation,Layoutをmixin)
 ・Choices.newメソッドの引数インタフェースを変更(ただし、既存の処理に影響しない)
 ・Miyako.main_loopの引数インタフェース変更(ただし、既存の処理に影響しない)
 <ファイル追加>
@@ -1135,6 +1137,8 @@ v2.1.0(2009.7.9)
 <インスタンスメソッド追加>
 ・Choise#body_disable
 ・Choise#enable
+・Choice#broad_rect
+・Choice#update_layout_size
 ・Choices#enable?
 ・Choices#choices
 ・Choices#update_layout_size
