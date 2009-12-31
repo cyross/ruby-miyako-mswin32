@@ -1482,13 +1482,16 @@ v2.1.5(2010.01.01)
 ・Layout#.include_snap_child?メソッドの戻り値間違いを修正
 ・拡張ライブラリのソースがVisualCでビルドできない問題を修正
 ・無駄なForwardableモジュールのmixinを削除
-・無駄なforwardable.rbの読み込みを削除（二重requireの解決）
+・無駄なforwardable.rbの読み込みを削除
+　（Ruby1.9.2で、二重requireのメッセージが出ていたのを解決）
 ・Forwardable.rbの読み込みを削除（ファイル名間違い）
 ・一部ソースを、Ruby.1.9.2で動作しないものがあったため修正
 ・一部サンプルを、Ruby1.9.2で動作するように修正
 <機能改善>
 <仕様変更>
 ・起動時の表示モードをウインドウモードに変更
+・Yuki#render/render_to/update_animationにあったvisiblesのrender/render_to/update_animationの呼び出しを廃止
+・InitiativeYuki#render/render_to/update_animationにあったvisiblesのrender/render_to/update_animationの呼び出しを廃止
 <ファイル追加>
 <ファイル削除>
 <グローバル変数追加>
@@ -1496,15 +1499,22 @@ v2.1.5(2010.01.01)
 <定数削除>
 <構造体追加>
 <クラス追加>
+・ScenarioEngine(Yukiと同等)
+・InitiativeScenarioEngine(InitiativeYukiと同等)
+・InitiativeScenarioEngineTemplate(InitiativeYukiTemplateと同等)
 <モジュール追加>
 <mixin>
 <クラス・モジュールメソッド追加>
 <クラス・モジュールメソッド廃止>
 <モジュール関数追加>
 <インスタンスメソッド追加>
+・scenario_plot(yuki_plotと同等)
+・Yuki#over_engine
 <インスタンスメソッド廃止>
 ・Parts#part_move!
 ・Parts#part_move_to!
+・TextBox#select_type/selct_type=
+・InitiativeScenarioEngine#over_exec
 
 *******************************************************************************
 このReadMeファイルは「れ～どめ～えじた～」によって作成されました。
