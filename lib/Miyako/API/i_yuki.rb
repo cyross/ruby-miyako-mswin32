@@ -200,6 +200,9 @@ module Miyako
     #(2)キャンセルボタンを押した？(true/false)
     #(3)キーパッドの移動量を示す配列([dx,dy])
     #(4)マウスの位置を示す配列([x,y])
+    #<<(2.1.15-追加、省略可能)>>
+    #(5)現在指しているコマンドは選択可能?(true/false)
+    #(6)現在指しているコマンドの結果
     #callメソッドを持つブロックが使用可能。
     attr_reader :selecting_procs
 
@@ -1048,6 +1051,32 @@ module Miyako
                          self.instance_exec(&plot_block)
     end
 
+    #===プロット処理中に別のプロットを呼び出す
+    #呼び出し可能なプロットは以下の2種類。(上から優先度が高い順）
+    #
+    #1)引数prot_proc(Procクラスのインスタンス)
+    #
+    #2)引数として渡したブロック
+    #
+    #_plot_proc_:: プロットの実行部をインスタンス化したオブジェクト
+    #返却値:: プロットの実行結果を返す
+    def call_plot_params(plot_proc, *params)
+      return self.instance_exec(*params, &plot_proc)
+    end
+
+    #===プロット処理中に別のプロットを呼び出す
+    #呼び出し可能なプロットは以下の2種類。(上から優先度が高い順）
+    #
+    #1)引数prot_proc(Procクラスのインスタンス)
+    #
+    #2)引数として渡したブロック
+    #
+    #_plot_proc_:: プロットの実行部をインスタンス化したオブジェクト
+    #返却値:: プロットの実行結果を返す
+    def call_plot_block(*params, &plot_block)
+      return self.instance_exec(*params, &plot_block)
+    end
+
     #===ポーズ解除問い合わせメソッド配列を初期状態に戻す
     #返却値:: 自分自身を返す
     def reset_release_checks
@@ -1488,7 +1517,17 @@ module Miyako
         @select_amount = @key_amount_proc.call
         @mouse_amount = @mouse_amount_proc.call
         @selecting_procs.each{|sp|
-          sp.call(@select_ok, @select_cansel, @select_amount, @mouse_amount)
+          case sp.arity
+          when 6
+            sp.call(@select_ok, @select_cansel,
+              @select_amount, @mouse_amount,
+              @command_box.enable_choice?, @command_box.result
+            )
+          else
+            sp.call(@select_ok, @select_cansel,
+              @select_amount, @mouse_amount
+            )
+          end
         }
         if @select_ok
           unless @command_box.enable_choice?

@@ -33,24 +33,6 @@ ARGV.options do |opt|
   opt.parse!
 end
 
-ext_dir = "./"
-osn = Config::CONFIG["target_os"].downcase
-if osn =~ /mswin|mingw|cygwin|bccwin/
-  ext_dir = "win/"
-elsif osn =~ /darwin/ # Mac OS X
-  if ENV['SDL_CONFIG_PATH']
-    system(Config::CONFIG["ruby_install_name"] + " extconf.rb --with-sdl-config='#{ENV['SDL_CONFIG_PATH']}'; make")
-  else
-    system(Config::CONFIG["ruby_install_name"] + " extconf.rb --with-sdl-config='sdl-config'; make")
-  end
-else # linux, U*IX...
-  if ENV['SDL_CONFIG_PATH']
-    system(Config::CONFIG["ruby_install_name"] + " extconf.rb --with-sdl-config='#{ENV['SDL_CONFIG_PATH']}'; make")
-  else
-    system(Config::CONFIG["ruby_install_name"] + " extconf.rb --with-sdl-config='sdl-config'; make")
-  end
-end
-
 baselibdir = Config::CONFIG["sitelibdir"]
 sitelibdir = baselibdir + "/Miyako"
 apidir = sitelibdir + "/API"
@@ -67,23 +49,8 @@ FileUtils.mkpath(sitelibdir, option)
 FileUtils.mkpath(apidir, option)
 FileUtils.mkpath(extdir, option)
 
-if osn =~ /darwin/ # Mac OS X
-  Dir.glob(ext_dir + "*.bundle"){|fname| FileUtils.install(fname, sitelibdir, option)}
-else # Windows, linux, U*IX...
-  Dir.glob(ext_dir + "*.so"){|fname| FileUtils.install(fname, sitelibdir, option)}
-end
 Dir.glob("lib/*.rb"){|fname| FileUtils.install(fname, baselibdir, option)}
 Dir.glob("lib/Miyako/*.rb"){|fname| FileUtils.install(fname, sitelibdir, option)}
+Dir.glob("lib/Miyako/*.so"){|fname| FileUtils.install(fname, sitelibdir, option)}
 Dir.glob("lib/Miyako/API/*.rb"){|fname| FileUtils.install(fname, apidir, option)}
 Dir.glob("lib/Miyako/EXT/*.rb"){|fname| FileUtils.install(fname, extdir, option)}
-
-unless osn =~ /mswin|mingw|cygwin|bccwin/
-  FileUtils.chmod(0755, sitelibdir)
-  FileUtils.chmod(0755, apidir)
-  FileUtils.chmod(0755, extdir)
-  FileUtils.chmod(0644, sitelibdir+'/miyako.rb')
-  Dir.glob(sitelibdir+"/*.so"){|fname| FileUtils.chmod(0644, fname)} # for linux,bsd
-  Dir.glob(sitelibdir+"/*.bundle"){|fname| FileUtils.chmod(0644, fname)} # for macosx
-  Dir.glob(apidir+"/*.rb"){|fname| FileUtils.chmod(0644, fname)}
-  Dir.glob(extdir+"/*.rb"){|fname| FileUtils.chmod(0644, fname)}
-end
