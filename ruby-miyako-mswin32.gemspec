@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name = "ruby-miyako-mswin32"
-  s.version = "2.1.16"
+  s.version = "2.1.18"
 #  s.date = "2009-4-26"
   s.summary = "Game programming library for Ruby"
   s.email = "cyross@po.twin.ne.jp"
@@ -12,6 +12,7 @@ Gem::Specification.new do |s|
   s.authors = ["Cyross Makoto"]
   s.test_files = []
   s.files = [
+"./ChangeLog.txt",
 "./img/cursor.png",
 "./img/cursors.png",
 "./img/dice.png",
